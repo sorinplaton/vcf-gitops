@@ -1,0 +1,14 @@
+# Exported from the live lab on 2026-10-01 (status, managed fields and generated
+# kapp/kubectl metadata removed). Reference only: Argo CD does not watch this folder.
+# The ArgoCD object that the Argo CD Supervisor Service turns into the instance.
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ArgoCD
+metadata:
+  name: argocd-1
+  namespace: argocd-demo-wqfbg
+  finalizers:
+  - finalizer.argocd-service.vsphere.vmware.com/argocd-cleanup
+spec:
+  enableLoadBalancer: true
+  serverSideDiff: true
+  version: 3.4.4+vmware.1-vks.1

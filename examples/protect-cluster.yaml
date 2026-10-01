@@ -1,0 +1,11 @@
+# Example from the blog, Part 2. Not applied in the lab.
+# Snippet only: the metadata to add to clusters/demo-vks-cluster/cluster.yaml so that
+# Argo CD neither deletes nor prunes the Cluster (and with it the VMs). The real
+# cluster.yaml is not changed.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: demo-vks-cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false

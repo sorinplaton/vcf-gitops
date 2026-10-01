@@ -1,0 +1,27 @@
+# Example from the blog, Part 2. Not applied in the lab.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argocd-demo-wqfbg
+spec:
+  description: Application teams. Workloads inside the VKS cluster only.
+  sourceRepos:
+  - https://github.com/sorinplaton/vcf-gitops.git
+  destinations:
+  - server: https://10.200.200.7:6443
+    namespace: 'podinfo*'
+  # CreateNamespace=true needs Namespace whitelisted here (group '', kind Namespace);
+  # with an empty list the project cannot create any cluster-scoped resource.
+  clusterResourceWhitelist: []
+  namespaceResourceBlacklist:
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  syncWindows:
+  - kind: deny
+    schedule: '0 22 * * 5'
+    duration: 48h
+    applications:
+    - '*'

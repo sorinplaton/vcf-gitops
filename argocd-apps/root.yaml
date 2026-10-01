@@ -1,0 +1,29 @@
+# Root application ("app of apps"). NOT APPLIED IN THE LAB.
+#
+# It needs the hosting namespace argocd-demo-wqfbg registered as an Argo CD target, and
+# that target's service account allowed to create Applications there. On 2026-10-01:
+#   - `vcf argocd cluster list` showed two targets only: the Supervisor namespace
+#     podinfo-demo-vkjhr and the VKS cluster https://10.200.200.7:6443
+#     (the instance runs with cluster.inClusterEnabled=false);
+#   - `kubectl auth can-i create applications.argoproj.io -n argocd-demo-wqfbg
+#      --as system:serviceaccount:argocd-demo-wqfbg:argocd-manager` answered "no".
+# Nothing was registered and no RBAC was changed. The destination below is the form a
+# registered Supervisor namespace takes in this lab; adjust it to the real target name.
+#
+# Sync policy is manual on purpose, with no prune and nothing automated: pruning here
+# would delete an Application, and deleting demo-vks-cluster cascades to its six VMs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd-demo-wqfbg
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git
+    path: argocd-apps
+    directory:
+      exclude: 'root.yaml'
+  destination:
+    server: https://kubernetes.default.svc/?context=argocd-demo-wqfbg
+    namespace: argocd-demo-wqfbg

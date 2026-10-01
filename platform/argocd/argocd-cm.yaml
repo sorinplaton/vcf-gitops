@@ -1,0 +1,200 @@
+# Exported from the live lab on 2026-10-01 (status, managed fields and generated
+# kapp/kubectl metadata removed). Reference only: Argo CD does not watch this folder.
+# Written by the Argo CD Supervisor Service package; contains no secrets.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd-demo-wqfbg
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/version: v3.4.4
+data:
+  admin.enabled: 'true'
+  application.instanceLabelKey: argocd.argoproj.io/instance
+  application.resourceTrackingMethod: annotation
+  application.sync.impersonation.enabled: 'false'
+  cluster.inClusterEnabled: 'false'
+  exec.enabled: 'false'
+  installationID: argocd-demo-wqfbg-instance
+  kustomize.path.v5.6.0: /usr/local/bin/kustomize_5_6_0
+  kustomize.path.v5.8.1: /usr/local/bin/kustomize_5_8_1
+  resource.customizations.ignoreResourceUpdates.ConfigMap: |
+    jqPathExpressions:
+      # Ignore the cluster-autoscaler status
+      - '.metadata.annotations."cluster-autoscaler.kubernetes.io/last-updated"'
+      # Ignore the annotation of the legacy Leases election
+      - '.metadata.annotations."control-plane.alpha.kubernetes.io/leader"'
+  resource.customizations.ignoreResourceUpdates.Endpoints: |
+    jsonPointers:
+      - /metadata
+      - /subsets
+  resource.customizations.ignoreResourceUpdates.all: |
+    jsonPointers:
+      - /status
+  resource.customizations.ignoreResourceUpdates.apps_ReplicaSet: |
+    jqPathExpressions:
+      - '.metadata.annotations."deployment.kubernetes.io/desired-replicas"'
+      - '.metadata.annotations."deployment.kubernetes.io/max-replicas"'
+      - '.metadata.annotations."rollout.argoproj.io/desired-replicas"'
+  resource.customizations.ignoreResourceUpdates.argoproj.io_Application: |
+    jqPathExpressions:
+      - '.metadata.annotations."notified.notifications.argoproj.io"'
+      - '.metadata.annotations."argocd.argoproj.io/refresh"'
+      - '.metadata.annotations."argocd.argoproj.io/hydrate"'
+      - '.operation'
+  resource.customizations.ignoreResourceUpdates.argoproj.io_Rollout: |
+    jqPathExpressions:
+      - '.metadata.annotations."notified.notifications.argoproj.io"'
+  resource.customizations.ignoreResourceUpdates.autoscaling_HorizontalPodAutoscaler: |
+    jqPathExpressions:
+      - '.metadata.annotations."autoscaling.alpha.kubernetes.io/behavior"'
+      - '.metadata.annotations."autoscaling.alpha.kubernetes.io/conditions"'
+      - '.metadata.annotations."autoscaling.alpha.kubernetes.io/metrics"'
+      - '.metadata.annotations."autoscaling.alpha.kubernetes.io/current-metrics"'
+  resource.customizations.ignoreResourceUpdates.discovery.k8s.io_EndpointSlice: |
+    jsonPointers:
+      - /metadata
+      - /endpoints
+      - /ports
+  resource.exclusions: |
+    - apiGroups:
+      - ""
+      - discovery.k8s.io
+      kinds:
+      - EndpointSlice
+      - Endpoints
+    - apiGroups:
+      - ""
+      - events.k8s.io
+      kinds:
+      - Event
+    - apiGroups:
+      - acme.cert-manager.io
+      kinds:
+      - Challenge
+      - Order
+    - apiGroups:
+      - appplatform.vmware.com
+    - apiGroups:
+      - appplatform.wcp.vmware.com
+    - apiGroups:
+      - authentication.k8s.io
+      - authorization.k8s.io
+      kinds:
+      - SelfSubjectReview
+      - TokenReview
+      - LocalSubjectAccessReview
+      - SelfSubjectAccessReview
+      - SelfSubjectRulesReview
+      - SubjectAccessReview
+    - apiGroups:
+      - bootstrap.cluster.x-k8s.io
+    - apiGroups:
+      - cert-manager.io
+      kinds:
+      - CertificateRequest
+    - apiGroups:
+      - certificates.k8s.io
+      kinds:
+      - CertificateSigningRequest
+    - apiGroups:
+      - cilium.io
+      kinds:
+      - CiliumIdentity
+      - CiliumEndpoint
+      - CiliumEndpointSlice
+    - apiGroups:
+      - cli.tanzu.vmware.com
+    - apiGroups:
+      - cli.vmware.com
+    - apiGroups:
+      - clientsecret.supervisor.pinniped.dev
+    - apiGroups:
+      - cni.kubernetes.vmware.com
+    - apiGroups:
+      - cns.vmware.com
+    - apiGroups:
+      - config.supervisor.pinniped.dev
+    - apiGroups:
+      - config.vcf.vmware.com
+    - apiGroups:
+      - coordination.k8s.io
+      kinds:
+      - Lease
+    - apiGroups:
+      - crd.nsx.vmware.com
+    - apiGroups:
+      - encryption.vmware.com
+    - apiGroups:
+      - groupsnapshot.storage.k8s.io
+      kinds:
+      - VolumeGroupSnapshot
+    - apiGroups:
+      - iaas.vmware.com
+    - apiGroups:
+      - idp.supervisor.pinniped.dev
+    - apiGroups:
+      - imagecontroller.vmware.com
+    - apiGroups:
+      - imageregistry.vmware.com
+    - apiGroups:
+      - infra.vmware.com
+    - apiGroups:
+      - infrastructure.cluster.vmware.com
+    - apiGroups:
+      - installers.tmc.cloud.vmware.com
+    - apiGroups:
+      - internal.packaging.carvel.dev
+    - apiGroups:
+      - kyverno.io
+      - reports.kyverno.io
+      - wgpolicyk8s.io
+      kinds:
+      - PolicyReport
+      - ClusterPolicyReport
+      - EphemeralReport
+      - ClusterEphemeralReport
+      - AdmissionReport
+      - ClusterAdmissionReport
+      - BackgroundScanReport
+      - ClusterBackgroundScanReport
+      - UpdateRequest
+    - apiGroups:
+      - mobility-operator.vmware.com
+    - apiGroups:
+      - netoperator.vmware.com
+    - apiGroups:
+      - nsx.vmware.com
+    - apiGroups:
+      - os.kubernetes.vmware.com
+    - apiGroups:
+      - psp.wcp.vmware.com
+    - apiGroups:
+      - rbac.iaas.vmware.com
+    - apiGroups:
+      - run.tanzu.vmware.com
+    - apiGroups:
+      - snapshot.storage.k8s.io
+      kinds:
+      - VolumeSnapshot
+    - apiGroups:
+      - storage.k8s.io
+      kinds:
+      - CSIStorageCapacity
+    - apiGroups:
+      - topology.tanzu.vmware.com
+    - apiGroups:
+      - veleroappoperator.vmware.com
+    - apiGroups:
+      - vmware.infrastructure.cluster.x-k8s.io
+  resource.respectRBAC: normal
+  statusbadge.enabled: 'false'
+  timeout.hard.reconciliation: 0s
+  timeout.reconciliation: 300s
+  timeout.reconciliation.jitter: 120s
+  url: https://10.200.200.5
+  users.anonymous.enabled: 'false'

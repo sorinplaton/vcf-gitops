@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo
+  namespace: argocd-demo-wqfbg
+spec:
+  destination:
+    name: podinfo-demo
+    namespace: podinfo-demo-vkjhr
+  project: default
+  source:
+    chart: podinfo
+    helm:
+      values: |
+        replicaCount: 3
+        resources:
+          requests:
+            cpu: "0"
+            memory: "0"
+          limits:
+            cpu: 500m
+            memory: 128Mi
+        ui:
+          color: "#34a853"
+          message: "Updated by Argo CD"
+        service:
+          type: LoadBalancer
+    repoURL: https://stefanprodan.github.io/podinfo
+    targetRevision: 6.*
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

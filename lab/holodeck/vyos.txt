@@ -1,0 +1,7 @@
+Transcribed from the blog; replace with the copy from the router.
+VyOS (10.0.6.10): VLAN 200 moves to the holorouter; route the external block to it.
+
+configure
+delete interfaces ethernet eth1 vif 200
+set protocols static route 10.200.200.0/24 next-hop 10.0.6.33
+commit; save
