@@ -1,0 +1,13 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-vks-cluster
+  namespace: argocd-demo-wqfbg
+spec:
+  destination:
+    namespace: podinfo-demo-vkjhr
+    server: https://kubernetes.default.svc/?context=podinfo-demo-vkjhr
+  project: default
+  source:
+    path: clusters/demo-vks-cluster
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git

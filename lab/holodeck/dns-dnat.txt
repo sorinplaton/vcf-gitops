@@ -1,0 +1,17 @@
+Transcribed from the blog; replace with the copy from the router.
+The rule itself comes from the Claude Code session of 2026-10-01, not from the router.
+
+Symptom (VKS node, UDP): a DNS query to 10.1.1.1 got no reply; the same query to
+10.200.200.1 and to 8.8.8.8 was answered. Image pulls failed with
+"lookup ghcr.io on 127.0.0.53:53: read udp ... i/o timeout".
+Seen from the jump host: a query sent to 10.1.1.1 was answered from 10.0.6.33, that is,
+from the address of the interface the reply left on, not from the address that was asked.
+
+Rule added on the holorouter (VLAN 200 interface eth1.200):
+
+iptables -t nat -I PREROUTING -i eth1.200 -d 10.1.1.1/32 -p udp --dport 53 -j DNAT --to-destination 10.200.200.1:53
+
+Check afterwards from three nodes: the UDP query to 10.1.1.1 was answered and
+"getent hosts ghcr.io" returned 140.82.112.34.
+
+Undo: the same command with -D instead of -I.

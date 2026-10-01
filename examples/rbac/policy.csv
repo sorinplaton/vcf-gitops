@@ -1,0 +1,12 @@
+# Example from the blog, Part 2. Not applied in the lab.
+# Argo CD RBAC policy (argocd-rbac-cm, key policy.csv).
+# In production, take "applications, delete" on infra/* away from role:platform and
+# give it to a break-glass role only.
+p, role:platform, applications, *,      */*,        allow
+p, role:platform, projects,     *,      *,          allow
+p, role:platform, clusters,     *,      *,          allow
+p, role:app-team, applications, get,    apps/*,     allow
+p, role:app-team, applications, sync,   apps/*,     allow
+p, role:app-team, applications, action/*, apps/*,  allow
+g, platform-admins@holo-east, role:platform
+g, podinfo-devs@holo-east,    role:app-team

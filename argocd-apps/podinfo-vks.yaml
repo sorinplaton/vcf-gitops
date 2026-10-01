@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo-vks
+  namespace: argocd-demo-wqfbg
+spec:
+  destination:
+    namespace: podinfo
+    server: https://10.200.200.7:6443
+  project: default
+  source:
+    path: apps/podinfo
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

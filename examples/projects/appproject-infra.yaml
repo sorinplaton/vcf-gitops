@@ -1,0 +1,19 @@
+# Example from the blog, Part 2. Not applied in the lab.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: infra
+  namespace: argocd-demo-wqfbg
+spec:
+  description: Platform team. Cluster API objects in the Supervisor namespace only.
+  sourceRepos:
+  - https://github.com/sorinplaton/vcf-gitops.git
+  destinations:
+  - server: https://kubernetes.default.svc/?context=podinfo-demo-vkjhr
+    namespace: podinfo-demo-vkjhr
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+  - group: cluster.x-k8s.io
+    kind: '*'
+  - group: addons.kubernetes.vmware.com
+    kind: '*'

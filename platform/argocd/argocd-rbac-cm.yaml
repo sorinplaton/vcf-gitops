@@ -1,0 +1,19 @@
+# Exported from the live lab on 2026-10-01 (status, managed fields and generated
+# kapp/kubectl metadata removed). Reference only: Argo CD does not watch this folder.
+# Written by the Argo CD Supervisor Service package; policy.csv is empty in the lab.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd-demo-wqfbg
+  labels:
+    app.kubernetes.io/component: server
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/name: argocd-rbac-cm
+    app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/version: v3.4.4
+data:
+  policy.csv: ''
+  policy.default: ''
+  policy.matchMode: glob
+  scopes: '[group]'
