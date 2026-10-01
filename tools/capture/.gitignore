@@ -1,0 +1,5 @@
+node_modules/
+*.log
+fluxbox-init
+fluxbox-apps
+*.png
