@@ -39,6 +39,7 @@ Steps, run in order after the page has loaded:
 | `login:argocd` | log in to Argo CD as `admin` (or `$ARGOCD_USER`) with `$ARGOCD_PASSWORD`, then reopen the URL |
 | `login:vcenter` | log in to the vSphere Client with `$VC_USER` / `$VC_PASSWORD`, then reopen the URL |
 | `click:<selector>` | click the first element matching a Playwright selector |
+| `try-click:<selector>` | click it if it is there within 3 s (a dismissible banner); never fails |
 | `hover:<selector>` | put the mouse on the first matching element and leave it there |
 | `wait:<text>` | wait until the text is visible |
 | `expect:<text>` | require the text to be visible and log the element's full text; the capture fails otherwise |
@@ -67,6 +68,16 @@ saves `<name>-diag.png` and exits with code 1; a missing variable exits with cod
       'https://10.200.200.5/applications/argocd-demo-wqfbg/podinfo?view=tree' \
       login:argocd 'wait:podinfo' sleep:2500
 
+    export VC_USER=... VC_PASSWORD=...
+
+    node shot.js s16a-vsphere-pods \
+      'https://vc-wld01-a.site-a.vcf.lab/ui/app/workload-platform;nav=v/namespace/urn:vapi:com.vmware.wcp.WorkloadModel:podinfo-demo-vkjhr:cc745437-7983-429a-b5cd-4a03d6d2ad18/compute/pods' \
+      login:vcenter 'wait:podinfo-69547cd6b7' sleep:3000 \
+      'try-click:clr-alert button.close' sleep:800 'try-click:clr-alert button.close' sleep:1500 \
+      'expect:podinfo-69547cd6b7-529fn'
+
+    convert s16a-vsphere-pods.png s16b-argocd-podinfo-helm.png +append s16-vsphere-pods.png
+
 ## Notes
 
 - Chromium is launched with `headless: false`, `ignoreDefaultArgs: ['--enable-automation']`
@@ -77,3 +88,5 @@ saves `<name>-diag.png` and exits with code 1; a missing variable exits with cod
   focus on the page, so the URL in the address bar is not highlighted.
 - In the Argo CD Network view the node name of a Pod is in the popover of its "more" tag,
   not in the tooltip of the Pod box.
+- In the vSphere Client the vSphere Pods of a namespace are under Workload Management >
+  namespace > Compute > Core Kubernetes > Pods (column "vSphere Pod").

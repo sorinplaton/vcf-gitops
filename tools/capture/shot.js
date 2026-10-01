@@ -7,6 +7,7 @@
 //   login:argocd        log in to Argo CD (admin / $ARGOCD_PASSWORD), then reopen <url>
 //   login:vcenter       log in to the vSphere Client ($VC_USER / $VC_PASSWORD), then reopen <url>
 //   click:<selector>    click the first element matching a Playwright selector
+//   try-click:<selector>  click it if it is there within 3 s (for a dismissible banner); never fails
 //   hover:<selector>    move the mouse over the first matching element and leave it there
 //   wait:<text>         wait until the text is visible on the page
 //   expect:<text>       require the text to be visible now (5 s grace) and log the element's full text; fails otherwise
@@ -108,7 +109,10 @@ function screenShot(file) {
       if (kind === 'login' && arg === 'argocd') await loginArgocd(page, url);
       else if (kind === 'login' && arg === 'vcenter') await loginVcenter(page, url);
       else if (kind === 'click') await page.locator(arg).first().click({ timeout: 30000 });
-      else if (kind === 'hover') await page.locator(arg).first().hover({ timeout: 30000 });
+      else if (kind === 'try-click') {
+        const hit = await page.locator(arg).first().click({ timeout: 3000 }).then(() => true, () => false);
+        log(`try-click ${hit ? 'clicked' : 'nothing to click'}`);
+      } else if (kind === 'hover') await page.locator(arg).first().hover({ timeout: 30000 });
       else if (kind === 'wait') await page.getByText(arg, { exact: false }).first().waitFor({ state: 'visible', timeout: 60000 });
       else if (kind === 'expect') {
         const el = page.getByText(arg, { exact: false }).first();
