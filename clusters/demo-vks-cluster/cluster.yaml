@@ -1,0 +1,40 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: demo-vks-cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: [100.96.0.0/11]
+    services:
+      cidrBlocks: [100.64.0.0/13]
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: builtin-generic-v3.6.0
+      namespace: vmware-system-vks-public
+    version: v1.35.5+vmware.1-vkr.1
+    controlPlane:
+      replicas: 3
+      metadata:
+        annotations:
+          run.tanzu.vmware.com/resolve-os-image: os-name=photon
+    workers:
+      machineDeployments:
+      - class: node-pool
+        name: node-pool-1
+        replicas: 3
+        metadata:
+          annotations:
+            run.tanzu.vmware.com/resolve-os-image: os-name=photon
+        variables:
+          overrides:
+          - name: vmClass
+            value: best-effort-xsmall
+    variables:
+    - name: vmClass
+      value: best-effort-small
+    - name: storageClass
+      value: cluster-wld01-01a-vsan-storage-policy
