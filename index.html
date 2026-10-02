@@ -47,7 +47,7 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 <p class="dek">Argo CD as a Supervisor Service, a VKS cluster and an app built from one Git repository, end to end in a Holodeck lab</p><p class="byline">Sep 30, 2026</p>
 <h2 id="the-moment">The moment</h2>
 <p>A 40-line YAML file is pushed to <code>main</code> and Sync is pressed. Fifty-nine seconds later the Supervisor has created the first virtual machine object.</p>
-<p>Minutes later that VM powers on in vCenter, a brand-new Kubernetes API is answering on <code>10.200.200.7:6443</code>. The cluster finishes as six VMs, three control-plane nodes and three workers, with podinfo running inside. (minutes for nested Holodeck environment)</p>
+<p>Minutes later (longer on a nested Holodeck) that VM powers on in vCenter, a brand-new Kubernetes API is answering on <code>10.200.200.7:6443</code>. The cluster finishes as six VMs, three control-plane nodes and three workers, with podinfo running inside.</p>
 <p>Nobody opened a wizard, nobody ran Terraform, nobody had cluster credentials on a build server.</p>
 <p>Then a one-line commit takes podinfo from one pod to three in 16 seconds, and when it is scaled back to one by hand, Argo CD puts it back the way Git says in four seconds.</p>
 <figure class="shot"><img src="blog/assets/p1-01.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, VMs tab: six demo-vks-cluster VMs, all Powered On" loading="lazy"></figure>
@@ -363,7 +363,7 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 </tbody>
 </table></div>
 <figure class="shot"><img src="blog/assets/p1-02.png" alt="GitHub repository sorinplaton/vcf-gitops at tag blog-part1: apps, argocd-apps, clusters, examples, lab, platform, tools and the README" loading="lazy"></figure>
-<p><em>S20. The repository at tag <code>blog-part1</code>.</em></p>
+<p><em>The repository at tag <code>blog-part1</code>.</em></p>
 <h3 id="preflight-eight-checks-before-step-1">Preflight: eight checks before step 1</h3>
 <p>Each row is a one-line test you can run from the jump host, with the place in this post that explains the fix. Rows marked <strong>Holodeck</strong> are problems of a nested lab; on production VCF the network team's router and DNS normally pass them already, but run the test anyway.</p>
 <div class="tbl"><table>
@@ -426,7 +426,7 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 </tr>
 </tbody>
 </table></div>
-<p>Every screenshot in this post comes from the real run; the checklist at the end lists the few optional extras.</p>
+<p>Every screenshot in this post comes from the real run.</p>
 <h2 id="step-1-enable-the-argo-cd-supervisor-service">Step 1. Enable the Argo CD Supervisor Service</h2>
 <p>The Argo CD Operator is a Supervisor Service, installed once per Supervisor from the vSphere Client. It is a Broadcom-built Kubernetes Operator whose only job is the lifecycle of Argo CD instances: it teaches the Supervisor a new object type, <code>ArgoCD</code>, and whenever one appears in a namespace it builds, upgrades and repairs the instance behind it.</p>
 <p>In the 9.1.1 bill of materials the service is version <strong>1.2.0</strong> and it bundles upstream Argo CD <strong>3.4.4</strong> (the version the API reported once the lab instance was healthy).</p>
@@ -542,7 +542,7 @@ commit; save
 </code></pre>
 <p>Either way, the load balancer must exist before <code>argocd-server</code> can get a VIP.</p>
 <figure class="shot"><img src="blog/assets/p1-06.png" alt="NSX Manager, project holo-east, VPC vpc-podinfo-demo-l2x8e4 expanded: private CIDR 10.17.17.0/24, Network Services with NSX Load Balancer View Configuration" loading="lazy"></figure>
-<p><em>S3. NSX Manager, project <code>holo-east</code>: the target VPC <code>vpc-podinfo-demo-l2x8e4</code> expanded, with its NSX Load Balancer under Network Services.</em></p>
+<p><em>NSX Manager, project <code>holo-east</code>: the target VPC <code>vpc-podinfo-demo-l2x8e4</code> expanded, with its NSX Load Balancer under Network Services.</em></p>
 <figure class="shot"><img src="blog/assets/p1-07.png" alt="Terminal: kubectl get vpcnetworkconfiguration, then the nsxLoadBalancerPath of the podinfo namespace ending in vpc-lbs/lb-fhhy" loading="lazy"></figure>
 <p><em>The Supervisor's side of the same load balancer: <code>nsxLoadBalancerPath</code> for <code>podinfo-demo-vkjhr</code> ends in <code>/vpc-lbs/lb-fhhy</code>. Empty output here means LoadBalancer services in that namespace will stay pending.</em></p>
 <h2 id="step-3-deploy-the-argo-cd-instance">Step 3. Deploy the Argo CD instance</h2>
@@ -675,13 +675,12 @@ kubectl -n podinfo-demo-vkjhr get cluster,machines -o wide     # the real finish
 <p><strong>Reading <code>app wait</code>.</strong> "Healthy" means Argo CD applied the Cluster object, not that all six VMs are ready, and its <code>Duration</code> is the sync, not the build.</p>
 <p>The real finish line is the last command above: wait until <code>kubectl get cluster,machines</code> shows <code>CP AVAILABLE 3</code> and <code>W AVAILABLE 3</code>.</p>
 <p>And the Cluster reports Healthy slightly early: here the app went Healthy with five of six machines Running.</p>
-<p>The real finish line is <code>CP AVAILABLE 3</code> and <code>W AVAILABLE 3</code> on the Cluster.</p>
 <figure class="shot"><img src="blog/assets/p1-15.png" alt="Argo CD UI, application demo-vks-cluster in tree view, health Progressing, sync status Synced to HEAD 7ec073f" loading="lazy"></figure>
 <p><em>Argo CD, application <code>demo-vks-cluster</code> Synced to <code>7ec073f</code>, health Progressing. The app holds a single object, the Cluster; everything else is the Supervisor's work. (Use the tree view: the Network view is empty for an app that contains only a Cluster.)</em></p>
 <figure class="shot"><img src="blog/assets/p1-16.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, one control-plane VM Powered On" loading="lazy"></figure>
 <p><em>Ten minutes in: the first control-plane VM, Powered On.</em></p>
 <figure class="shot"><img src="blog/assets/p1-17.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, five VMs, one still Powered Off, Recent Tasks running" loading="lazy"></figure>
-<p><em>five VMs, the second control-plane VM still Powered Off, Recent Tasks busy.</em></p>
+<p><em>Five VMs, the second control-plane VM still Powered Off, Recent Tasks busy.</em></p>
 <figure class="shot"><img src="blog/assets/p1-18.png" alt="Terminal: vcf argocd app wait ending Synced and Healthy, then kubectl get cluster and machines showing 3 control plane and 3 workers Running" loading="lazy"></figure>
 <p><em><code>app wait</code> ends Synced / Healthy; <code>kubectl get cluster,machines</code> underneath shows the real finish line, three control-plane and three worker machines Running.</em></p>
 <figure class="shot"><img src="blog/assets/p1-19.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, Compute, Kubernetes clusters: demo-vks-cluster Available, 3 workers, v1.35.5, control plane 10.200.200.7" loading="lazy"></figure>
@@ -751,7 +750,7 @@ kubectl --context demo-vks-cluster -n podinfo get svc podinfo
 </code></pre>
 <p>The load balancer handed out <code>10.200.200.8</code> after the sync, and the page answered at <code>http://10.200.200.8:9898</code> one second later.</p>
 <figure class="shot"><img src="blog/assets/p1-22.png" alt="Argo CD podinfo-vks Network view with three Pods; the popover on one Pod shows Node demo-vks-cluster-node-pool-1-t7n2z-87mq4-f74d6" loading="lazy"></figure>
-<p><em>Argo CD, <code>podinfo-vks</code>, Network view: traffic enters at <code>10.200.200.8</code>, goes through the <code>podinfo</code> Service to three Pods. The popover on one Pod shows the node it runs on, <code>demo-vks-cluster-node-pool-1-t7n2z-87mq4-f74d6</code>, one of the worker VMs from S9.</em></p>
+<p><em>Argo CD, <code>podinfo-vks</code>, Network view: traffic enters at <code>10.200.200.8</code>, goes through the <code>podinfo</code> Service to three Pods. The popover on one Pod shows the node it runs on, <code>demo-vks-cluster-node-pool-1-t7n2z-87mq4-f74d6</code>, one of the worker VMs shown at the top of the post.</em></p>
 <figure class="shot"><img src="blog/assets/p1-23.png" alt="podinfo page in a browser at 10.200.200.8:9898: greetings from podinfo v6.15.0, served by podinfo-5448f4f4fb-jtzj8" loading="lazy"></figure>
 <p><em>podinfo at <code>http://10.200.200.8:9898</code>, "greetings from podinfo v6.15.0", served by pod <code>podinfo-5448f4f4fb-jtzj8</code>. A container on a VM that a commit created.</em></p>
 <h2 id="step-6-prove-it-is-gitops">Step 6. Prove it is GitOps</h2>
@@ -824,7 +823,7 @@ vcf argocd app list      # argocd-demo-wqfbg/podinfo   Synced  Healthy  Auto-Pru
 <figure class="shot"><img src="blog/assets/p1-32.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, Compute tab, Core Kubernetes Pods: three podinfo pods Running, vSphere Pod Yes" loading="lazy"></figure>
 <p><em>vSphere Client, Supervisor Management &gt; Namespaces &gt; <code>podinfo-demo-vkjhr</code> &gt; Compute &gt; Core Kubernetes &gt; Pods: the three <code>podinfo-69547cd6b7-*</code> pods, Running, with the vSphere Pod column reading Yes. All three run on <code>esx-05a</code> itself, not on a node VM.</em></p>
 <figure class="shot"><img src="blog/assets/p1-33.png" alt="Argo CD application podinfo, tree view: Service, Deployment, ReplicaSet and three Pods from the podinfo Helm chart 6.15.0, Healthy and Synced" loading="lazy"></figure>
-<p><em>S16b. The same three pods from Argo CD's side: application <code>podinfo</code>, Helm chart <code>6.*</code> resolved to 6.15.0, Healthy and Synced.</em></p>
+<p><em>The same three pods from Argo CD's side: application <code>podinfo</code>, Helm chart <code>6.*</code> resolved to 6.15.0, Healthy and Synced.</em></p>
 <p>Which target to use for an app:</p>
 <div class="tbl"><table>
 <thead>
@@ -964,94 +963,6 @@ vcf argocd app list      # argocd-demo-wqfbg/podinfo   Synced  Healthy  Auto-Pru
 </tr>
 </tbody>
 </table></div>
-<h2 id="screenshot-checklist">Screenshot checklist</h2>
-<div class="tbl"><table>
-<thead>
-<tr>
-<th>#</th>
-<th>What is in frame</th>
-<th>Where</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>S9</td>
-<td>Six cluster VMs Powered On (hero), with S9a and S9b during the build</td>
-<td>The moment, step 4</td>
-</tr>
-<tr>
-<td>S1</td>
-<td>Services page, Argo CD 1.2.0 installed</td>
-<td>Step 1</td>
-</tr>
-<tr>
-<td>S2</td>
-<td>Namespaces list</td>
-<td>Step 2</td>
-</tr>
-<tr>
-<td>S3, S3b</td>
-<td>VCF Automation Enable load balancing switch (S29); NSX org VPC load balancer; its <code>nsxLoadBalancerPath</code></td>
-<td>Step 2</td>
-</tr>
-<tr>
-<td>S4, S5</td>
-<td>ArgoCD object Ready and pods; <code>argocd-server</code> VIP</td>
-<td>Step 3</td>
-</tr>
-<tr>
-<td>PodVM inventory</td>
-<td>Hosting, Operator, auto-attach and podinfo PodVMs</td>
-<td>Step 3</td>
-</tr>
-<tr>
-<td>S7</td>
-<td>Supervisor namespace registered as a target</td>
-<td>Step 4</td>
-</tr>
-<tr>
-<td>S22, S23, S23b</td>
-<td>Kubernetes Service library; namespace memory and storage limits</td>
-<td>Step 4 prerequisites</td>
-</tr>
-<tr>
-<td>S8, S10, S25</td>
-<td>Cluster app Progressing; <code>app wait</code> with 3 + 3 machines; vCenter's cluster view</td>
-<td>Step 4</td>
-</tr>
-<tr>
-<td>S11</td>
-<td>Settings &gt; Clusters, two targets</td>
-<td>Step 5</td>
-</tr>
-<tr>
-<td>S12, S13</td>
-<td><code>podinfo-vks</code> Network view with node popover; podinfo page</td>
-<td>Step 5</td>
-</tr>
-<tr>
-<td>S14, S15, S26</td>
-<td>Commit beside three pods; self-heal watch; self-heal animation</td>
-<td>Step 6</td>
-</tr>
-<tr>
-<td>S19, S21</td>
-<td>All three apps; pull request with no sync</td>
-<td>Step 6</td>
-</tr>
-<tr>
-<td>S20</td>
-<td>Repository at tag <code>blog-part1</code></td>
-<td>The repository</td>
-</tr>
-<tr>
-<td>S16a, S16b</td>
-<td>vSphere Pods in vCenter and in Argo CD</td>
-<td>The shortcut</td>
-</tr>
-</tbody>
-</table></div>
-<p>Also in step 6: S17a to S17c, the seventh VM. Every capture comes from the lab run.</p>
 <h3 id="sources">Sources</h3>
 <ul>
 <li><em>The VLAN Nobody Was Listening On</em>, the lab post-mortem behind this walkthrough: every dead end the Holodeck lab hit first, so yours does not have to (Argo CD Service 1.2.0, Argo CD 3.4.4, VCF 9.1.0 Holodeck)</li>
@@ -1314,7 +1225,7 @@ kubectl -n podinfo-demo-vkjhr get events --sort-by=.lastTimestamp | tail -20
 </tbody>
 </table></div>
 <figure class="shot"><img src="blog/assets/p2-34.png" alt="VM console of a stuck worker: FAILED Failed to mount /sysroot, two Dependency failed lines, Entering emergency mode" loading="lazy"></figure>
-<p><em>S27. What a stuck node looked like from vCenter during the first build, captured with <code>govc vm.console -capture</code>: the guest never mounted its root file system, so VMware Tools never started and the VM never reported an IP. The seventh VM, added later on its own, booted on the first attempt.</em></p>
+<p><em>What a stuck node looked like from vCenter during the first build, captured with <code>govc vm.console -capture</code>: the guest never mounted its root file system, so VMware Tools never started and the VM never reported an IP. The seventh VM, added later on its own, booted on the first attempt.</em></p>
 <p>The lesson for a demo: build the cluster the day before, or at least start the sync before the audience arrives. The commit-to-VM moment is real and fast; a nested lab's storage is not.</p>
 <h2 id="appendix-a-the-jump-host">Appendix A: the jump host</h2>
 <p>Everything in Part 1 is run from one Ubuntu VM on the outer lab network, built from cloud-init. It is not inside Holodeck, so it needs two things before any VCF tool works: a route into the Holodeck networks through the VyOS, and name resolution for <code>*.vcf.lab</code>. Both live in netplan so they survive a reboot.</p>
@@ -1378,7 +1289,7 @@ kubectl vsphere login --server 10.1.8.132 --vsphere-username administrator@vsphe
   --tanzu-kubernetes-cluster-name demo-vks-cluster                # context demo-vks-cluster
 </code></pre>
 <figure class="shot"><img src="blog/assets/p2-35.png" alt="Terminal on the jump host: vcf version v9.0.2, vcf plugin list with argocd v1.2.0, kubectl client v1.31.11, vcf argocd version v1.2.0, vcf context list" loading="lazy"></figure>
-<p><em>S0. The jump host's toolset: VCF CLI v9.0.2 with the <code>argocd</code> plugin v1.2.0, the Supervisor's <code>kubectl</code> (v1.31.11), and the VCF Automation contexts.</em></p>
+<p><em>The jump host's toolset: VCF CLI v9.0.2 with the <code>argocd</code> plugin v1.2.0, the Supervisor's <code>kubectl</code> (v1.31.11), and the VCF Automation contexts.</em></p>
 <p>The repository <code>holodeck-automation</code> on the same host holds the PowerShell helpers used around the lab (for instance enabling SSH on the VNA nodes through the NSX API); none of them are needed for this walkthrough.</p>
 <h2 id="appendix-b-rbac-policy-and-appproject">Appendix B: RBAC policy and AppProject</h2>
 <p>The RBAC policy lives in the <code>argocd-rbac-cm</code> ConfigMap in the hosting namespace. The default policy for anyone logged in is <code>role:readonly</code>; only <code>admin</code> has <code>role:admin</code> out of the box.</p>
