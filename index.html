@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GitOps on VCF 9.1: what the Argo CD Supervisor Service really takes</title>
+<title>Six VMs from one commit: GitOps that reaches the hypervisor on VCF 9.1</title>
 <meta name="description" content="Argo CD as a Supervisor Service, a VKS cluster and an app built from one Git repository, end to end in a Holodeck lab.">
 <style>
 :root{--bg:#fbfaf7;--fg:#1d1c1a;--muted:#5f5b53;--rule:#e3dfd6;--code-bg:#f1eee7;--link:#1f5fbf;--quote:#f4f1ea;--accent:#1f5fbf}
@@ -43,7 +43,7 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 </head>
 <body>
 <main>
-<h1 id="six-vms-from-one-commit-gitops-that-reaches-the-hypervisor-on-vcf-91">GitOps on VCF 9.1: what the Argo CD Supervisor Service really takes</h1>
+<h1 id="gitops-on-vcf-91-what-the-argo-cd-supervisor-service-really-takes">GitOps on VCF 9.1: what the Argo CD Supervisor Service really takes</h1>
 <p class="dek">Argo CD as a Supervisor Service, a VKS cluster and an app built from one Git repository, end to end in a Holodeck lab</p><p class="byline">Sep 30, 2026</p>
 <h2 id="the-moment">The moment</h2>
 <p>A 40-line YAML file is pushed to <code>main</code> and Sync is pressed. Fifty-nine seconds later the Supervisor has created the first virtual machine object.</p>
@@ -134,9 +134,9 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 </table></div>
 <p>On VCF the reach is wider than on a plain Kubernetes cluster, because the Supervisor exposes VMs, vSphere Pods and VKS clusters as Kubernetes objects.</p>
 <p>The same repository can therefore create the VKS cluster, deploy the apps into it, and provision VM Service virtual machines beside them.</p>
-<h3 id="argo-cd-as-a-vcf-automation-service-911-tech-preview-not-covered">&#32;Argo CD as a VCF Automation service (9.1.1 Tech Preview) (not covered)</h3>
+<h3 id="argo-cd-as-a-vcf-automation-service-911-tech-preview">&#32;Argo CD as a VCF Automation service (9.1.1 Tech Preview)</h3>
 <p>Since VCF 9.1.1 the same Argo CD is also delivered through VCF Automation: a provider admin installs the GitOps service once per region from Service Management, an organization admin deploys instances and attaches targets from the org portal, and users log in with their VCF Automation credentials.</p>
-<p>The loop does not change; the 9.1.1 bill of materials lists both forms at the same version, 1.2.0, built by the same Operator.</p>
+<p>The loop does not change; the 9.1.1 bill of materials lists both forms at the same version, 1.2.0, and the same build number: it is the same Operator.</p>
 <figure class="diagram"><img src="blog/assets/diagram-vcfa-tech-preview.png" alt="for comparison · Argo CD as a VCF Automation service, 9.1.1 Tech Preview" loading="lazy"><figcaption>for comparison · Argo CD as a VCF Automation service, 9.1.1 Tech Preview</figcaption></figure>
 <div class="tbl"><table>
 <thead>
@@ -165,12 +165,17 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 <tr>
 <td>Login</td>
 <td>Argo CD local accounts, or OIDC configured by hand</td>
-<td>VCF Automation credentials</td>
+<td>VCF Automation credentials, OIDC configured automatically</td>
 </tr>
 <tr>
 <td>Building, scaling, upgrading VKS clusters from Git</td>
 <td>Yes, Cluster objects in a namespace target</td>
 <td>The same: same Operator, same Cluster objects, same repository</td>
+</tr>
+<tr>
+<td>Reach of one instance</td>
+<td>The namespaces and clusters you register, on that Supervisor</td>
+<td>One instance per hosting namespace; namespaces and VKS clusters in the same region</td>
 </tr>
 <tr>
 <td>Scale limit</td>
@@ -189,7 +194,7 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 </tr>
 </tbody>
 </table></div>
-<p>Its strength is onboarding and identity, not the cluster build. Tenants get Argo CD as a self-service item instead of a ticket, attach their namespaces and VKS clusters in the portal without kubeconfigs or a CLI, and log in with their VCF Automation accounts, which is also how SAML or LDAP users reach Argo CD (the Operator on its own supports only local accounts and OIDC).</p>
+<p>Its strength is onboarding and identity, not the cluster build. Tenants get Argo CD as a self-service item instead of a ticket, attach their namespaces and VKS clusters in the portal without kubeconfigs or a CLI, and log in with their VCF Automation accounts, which is also how users federated into VCF Automation reach Argo CD (the Operator on its own supports only local accounts and OIDC).</p>
 <p>Building, scaling and upgrading VKS clusters from Git works the same on both, because both run the same Operator against the same Supervisor.</p>
 <p>In 9.1.1 the Supervisor Service remains the supported choice. Because both run the same Operator, the repository and steps in this post should carry over once the VCF Automation option leaves Tech Preview.</p>
 <h2 id="the-lab-and-where-every-piece-of-configuration-lives">The lab, and where every piece of configuration lives</h2>
