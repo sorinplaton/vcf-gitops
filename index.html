@@ -52,6 +52,7 @@ footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid v
 <p>Then a one-line commit takes podinfo from one pod to three in 16 seconds, and when it is scaled back to one by hand, Argo CD puts it back the way Git says in four seconds.</p>
 <figure class="shot"><img src="blog/assets/p1-01.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, VMs tab: six demo-vks-cluster VMs, all Powered On" loading="lazy"></figure>
 <p><em>vSphere Client, namespace <code>podinfo-demo-vkjhr</code>: three <code>demo-vks-cluster-l6l4p-*</code> control-plane VMs and three <code>node-pool-1</code> workers, all Powered On. Every one of them exists because of a single commit.</em></p>
+<figure class="diagram"><img src="blog/assets/diagram-run-timeline.png" alt="the whole run · seven steps with lab timings, from commit to self-heal" loading="lazy"><figcaption>the whole run · seven steps with lab timings, from commit to self-heal</figcaption></figure>
 <p>That is the thing a plain Kubernetes cluster cannot do and VMware Cloud Foundation can: the same GitOps loop that deploys containers also creates and resizes the machines they run on, because the vSphere Supervisor exposes VMs, VM-based Kubernetes clusters and vSphere Pods as Kubernetes objects.</p>
 <p>This post builds that from a bare Supervisor, in a nested Holodeck lab, with every command and every "gotcha".</p>
 <p>Part 2 covers who is allowed to change what once nobody deploys by hand, and what to do the day it does not work.</p>
