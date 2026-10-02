@@ -1,0 +1,1410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Six VMs from one commit: GitOps that reaches the hypervisor on VCF 9.1</title>
+<meta name="description" content="Argo CD as a Supervisor Service, a VKS cluster and an app built from one Git repository, end to end in a Holodeck lab.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1c1a;--muted:#5f5b53;--rule:#e3dfd6;--code-bg:#f1eee7;--link:#1f5fbf;--quote:#f4f1ea;--accent:#1f5fbf}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#17181a;--fg:#e8e6e1;--muted:#a7a39a;--rule:#33353a;--code-bg:#222428;--link:#7fb0ff;--quote:#1f2124;--accent:#7fb0ff}}
+:root[data-theme="dark"]{--bg:#17181a;--fg:#e8e6e1;--muted:#a7a39a;--rule:#33353a;--code-bg:#222428;--link:#7fb0ff;--quote:#1f2124;--accent:#7fb0ff}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:780px;margin:0 auto;padding:48px 16px 96px}
+h1{font-size:2.1rem;line-height:1.2;margin:0 0 12px;letter-spacing:-.01em}
+h2{font-size:1.5rem;line-height:1.3;margin:2.6em 0 .6em;padding-top:.6em;border-top:1px solid var(--rule)}
+h3{font-size:1.18rem;margin:2em 0 .5em}
+p{margin:0 0 1em}
+.dek{font-size:1.15rem;color:var(--muted);margin-bottom:6px}
+.byline{color:var(--muted);font-size:.9rem;margin-bottom:2em}
+a{color:var(--link);text-underline-offset:2px}
+code{font:.86em/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code-bg);padding:.1em .35em;border-radius:4px;overflow-wrap:anywhere}
+pre{background:var(--code-bg);padding:14px 16px;border-radius:8px;overflow-x:auto;margin:0 0 1.2em;line-height:1.5}
+pre code{background:none;padding:0;font-size:.82rem;overflow-wrap:normal;white-space:pre}
+blockquote{margin:0 0 1.2em;padding:12px 18px;background:var(--quote);border-left:3px solid var(--accent);border-radius:0 8px 8px 0}
+blockquote p:last-child{margin-bottom:0}
+.tbl{overflow-x:auto;margin:0 0 1.4em}
+table{border-collapse:collapse;width:100%;font-size:.88rem;line-height:1.5}
+th,td{border-bottom:1px solid var(--rule);padding:8px 10px;text-align:left;vertical-align:top}
+th{font-weight:600;border-bottom-width:2px}
+figure{margin:1.4em 0 .5em}
+figure img{display:block;max-width:100%;height:auto;border-radius:6px;border:1px solid var(--rule)}
+figure.diagram img{background:#fff;padding:8px}
+figcaption{color:var(--muted);font-size:.85rem;margin-top:6px}
+figure + p > em:only-child, figure + p em{color:var(--muted);font-size:.92rem}
+hr.part{border:0;border-top:3px double var(--rule);margin:4em 0 0}
+ul,ol{padding-left:1.4em;margin:0 0 1em}
+li{margin:.2em 0}
+li > p{margin:0 0 .4em}
+footer{margin-top:4em;color:var(--muted);font-size:.85rem;border-top:1px solid var(--rule);padding-top:1em}
+</style>
+</head>
+<body>
+<main>
+<h1 id="six-vms-from-one-commit-gitops-that-reaches-the-hypervisor-on-vcf-91">Six VMs from one commit: GitOps that reaches the hypervisor on VCF 9.1</h1>
+<p class="dek">Argo CD as a Supervisor Service, a VKS cluster and an app built from one Git repository, end to end in a Holodeck lab</p><p class="byline">Sep 30, 2026</p>
+<h2 id="the-moment">The moment</h2>
+<p>A 40-line YAML file is pushed to <code>main</code> and Sync is pressed. Fifty-nine seconds later the Supervisor has created the first virtual machine object.</p>
+<p>Minutes later that VM powers on in vCenter, a brand-new Kubernetes API is answering on <code>10.200.200.7:6443</code>. The cluster finishes as six VMs, three control-plane nodes and three workers, with podinfo running inside. (minutes for nested Holodeck environment)</p>
+<p>Nobody opened a wizard, nobody ran Terraform, nobody had cluster credentials on a build server.</p>
+<p>Then a one-line commit takes podinfo from one pod to three in 16 seconds, and when it is scaled back to one by hand, Argo CD puts it back the way Git says in four seconds.</p>
+<figure class="shot"><img src="blog/assets/p1-01.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, VMs tab: six demo-vks-cluster VMs, all Powered On" loading="lazy"></figure>
+<p><em>vSphere Client, namespace <code>podinfo-demo-vkjhr</code>: three <code>demo-vks-cluster-l6l4p-*</code> control-plane VMs and three <code>node-pool-1</code> workers, all Powered On. Every one of them exists because of a single commit.</em></p>
+<p>That is the thing a plain Kubernetes cluster cannot do and VMware Cloud Foundation can: the same GitOps loop that deploys containers also creates and resizes the machines they run on, because the vSphere Supervisor exposes VMs, VM-based Kubernetes clusters and vSphere Pods as Kubernetes objects.</p>
+<p>This post builds that from a bare Supervisor, in a nested Holodeck lab, with every command and every "gotcha".</p>
+<p>Part 2 covers who is allowed to change what once nobody deploys by hand, and what to do the day it does not work.</p>
+<blockquote>
+<p><strong>If you have never touched Kubernetes, three sentences are enough to follow along.</strong></p>
+<p>Git is the recipe book: it holds the exact description of every cluster and every app you want.</p>
+<p>Argo CD is a cook who reads the book every few minutes, makes whatever it says, and if someone tampers with a plate, quietly makes it again the way the book says.</p>
+<p>The vSphere Supervisor is a kitchen that can build both the ovens (virtual machines) and the dishes (containers) from the same recipe, which is why one book can describe a whole cluster and not just what runs in it.</p>
+</blockquote>
+<h2 id="what-you-did-not-have-to-do">What you did not have to do</h2>
+<p>A practitioner who has built this on bare Kubernetes will recognize the list. Everything in the right-hand column is the platform's job on VCF.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>On a plain Kubernetes stack</th>
+<th>On VCF 9.1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bootstrap Cluster API, pick a provider, template the machines, maintain node images</td>
+<td>Commit a 40-line <code>Cluster</code> object; the Supervisor builds Photon nodes from its content library</td>
+</tr>
+<tr>
+<td>Install and patch Argo CD yourself, per cluster</td>
+<td>Enable the Argo CD Operator once per Supervisor; one <code>ArgoCD</code> object per team; upgrades are a version bump</td>
+</tr>
+<tr>
+<td>Choose and operate a CNI, a load balancer and an ingress</td>
+<td>Every namespace gets its own NSX VPC, SNAT and load balancer; Antrea comes with the cluster</td>
+</tr>
+<tr>
+<td>Build guardrails from scratch: quotas, storage classes, who may create what</td>
+<td>VM classes, storage policies, namespace quotas and vSphere SSO roles already exist and apply to Git-created objects</td>
+</tr>
+<tr>
+<td>Keep VMs and containers in two tool chains</td>
+<td>One repository can hold the VKS cluster, the apps in it and VM Service virtual machines beside them</td>
+</tr>
+<tr>
+<td>Find out at 2 a.m. that a node image, a CNI version and a Kubernetes version disagree</td>
+<td>Kubernetes releases are validated bundles; the Argo CD service lags a new VKS minor by two to four months and says so</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="argo-cd-in-one-page">Argo CD in one page</h2>
+<p>Argo CD is a service that runs inside Kubernetes and does one job: it keeps a running environment identical to a set of YAML files stored in Git.</p>
+<p>You describe what you want, commit it, and Argo CD pulls the repository, compares it with what is actually running, applies whatever is missing, and then keeps checking. If someone changes the live system by hand, Argo CD notices the drift and, if you let it, puts it back.</p>
+<p>Git is the source of truth and nobody deploys by hand; that working style is <strong>GitOps</strong>.</p>
+<figure class="diagram"><img src="blog/assets/diagram-gitops-loop.png" alt="the GitOps loop · commit, pull, apply, correct drift" loading="lazy"><figcaption>the GitOps loop · commit, pull, apply, correct drift</figcaption></figure>
+<p>Four objects carry the whole model:</p>
+<ul>
+<li>An <strong>Application</strong> points one folder of a Git repository at one target (a cluster endpoint plus a namespace) and holds the sync policy: manual, automated, self-heal, prune.</li>
+<li>A <strong>Project</strong> (<code>AppProject</code>) is the boundary an Application must fit inside: which repositories it may read, which targets it may write to, which kinds of objects it may create, and when it may sync.</li>
+<li>A <strong>cluster secret</strong> is a registered target: the API endpoint plus the credential Argo CD uses there.</li>
+<li>The <strong>RBAC policy</strong> says which humans may do what to which Applications and Projects.</li>
+</ul>
+<p>What the two audiences get:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th></th>
+<th>Platform admin</th>
+<th>Developers and platform engineers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Before</td>
+<td>Every new cluster, node pool or upgrade is a ticket and a <code>kubectl</code> session; nobody can say who changed what</td>
+<td>Deploy with pipelines that push into the cluster and keep cluster credentials on a build server</td>
+</tr>
+<tr>
+<td>After</td>
+<td>Sets boundaries once (namespaces, quotas, Projects, targets) and hands teams a repository. Every change is a commit with an author, a reviewer and a diff; a cluster upgrade is a one-line change; rollback is <code>git revert</code></td>
+<td>Open a pull request. Argo CD pulls the change in, so no cluster credential leaves the platform. The UI shows what is deployed where, whether it matches Git, and why it is unhealthy</td>
+</tr>
+</tbody>
+</table></div>
+<p>On VCF the reach is wider than on a plain Kubernetes cluster, because the Supervisor exposes VMs, vSphere Pods and VKS clusters as Kubernetes objects.</p>
+<p>The same repository can therefore create the VKS cluster, deploy the apps into it, and provision VM Service virtual machines beside them.</p>
+<h3 id="argo-cd-as-a-vcf-automation-service-911-tech-preview-not-covered">&#32;Argo CD as a VCF Automation service (9.1.1 Tech Preview) (not covered)</h3>
+<p>Since VCF 9.1.1 the same Argo CD is also delivered through VCF Automation: a provider admin installs the GitOps service once per region from Service Management, an organization admin deploys instances and attaches targets from the org portal, and users log in with their VCF Automation credentials.</p>
+<p>The loop does not change; the 9.1.1 bill of materials lists both forms at the same version, 1.2.0, built by the same Operator.</p>
+<figure class="diagram"><img src="blog/assets/diagram-vcfa-tech-preview.png" alt="for comparison · Argo CD as a VCF Automation service, 9.1.1 Tech Preview" loading="lazy"><figcaption>for comparison · Argo CD as a VCF Automation service, 9.1.1 Tech Preview</figcaption></figure>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th></th>
+<th>Supervisor Service (this post)</th>
+<th>VCF Automation service (Tech Preview)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Installed by</td>
+<td>vSphere admin, once per Supervisor, from vCenter</td>
+<td>Provider admin, once per region, from Service Management</td>
+</tr>
+<tr>
+<td>Argo CD instance created by</td>
+<td>An <code>ArgoCD</code> object applied to a namespace</td>
+<td>Org admin, from the VCF Automation org portal</td>
+</tr>
+<tr>
+<td>Namespaces and VKS clusters registered by</td>
+<td><code>vcf argocd cluster add</code>, or the 9.1.1 auto-attach policy</td>
+<td>Attached in the org portal</td>
+</tr>
+<tr>
+<td>Login</td>
+<td>Argo CD local accounts, or OIDC configured by hand</td>
+<td>VCF Automation credentials</td>
+</tr>
+<tr>
+<td>Building, scaling, upgrading VKS clusters from Git</td>
+<td>Yes, Cluster objects in a namespace target</td>
+<td>The same: same Operator, same Cluster objects, same repository</td>
+</tr>
+<tr>
+<td>Scale limit</td>
+<td>None stated</td>
+<td>30 vSphere Namespaces across all instances in a VCF Automation</td>
+</tr>
+<tr>
+<td>Prerequisites</td>
+<td>A Supervisor</td>
+<td>Regional Harbor in the region</td>
+</tr>
+<tr>
+<td>Status in 9.1.1</td>
+<td>Supported since VCF 9.1</td>
+<td>Tech Preview</td>
+</tr>
+</tbody>
+</table></div>
+<p>Its strength is onboarding and identity, not the cluster build. Tenants get Argo CD as a self-service item instead of a ticket, attach their namespaces and VKS clusters in the portal without kubeconfigs or a CLI, and log in with their VCF Automation accounts, which is also how SAML or LDAP users reach Argo CD (the Operator on its own supports only local accounts and OIDC).</p>
+<p>Building, scaling and upgrading VKS clusters from Git works the same on both, because both run the same Operator against the same Supervisor.</p>
+<p>In 9.1.1 the Supervisor Service remains the supported choice. Because both run the same Operator, the repository and steps in this post should carry over once the VCF Automation option leaves Tech Preview.</p>
+<h2 id="the-lab-and-where-every-piece-of-configuration-lives">The lab, and where every piece of configuration lives</h2>
+<p>The whole environment is a nested VCF 9.1.0 Holodeck: management domain, a workload domain with NSX 9.1, a Supervisor with NSX VPC networking, and a VCF Automation instance.</p>
+<p>Around it sit the two routers Holodeck gives you: the <strong>holorouter</strong> (a Photon OS VM that is the default gateway for every Holodeck VLAN and also hosts the lab DNS as a host-network pod) and a <strong>VyOS</strong> on the outer lab network that routes between Holodeck and the rest of the lab. Every configuration change in this post was made on one of those two VMs, in NSX, or in the Supervisor. Nothing was changed on physical equipment.</p>
+<figure class="diagram"><img src="blog/assets/diagram-lab-topology.png" alt="full lab topology · outer network, holorouter, management and workload domains, Supervisor" loading="lazy"><figcaption>full lab topology · outer network, holorouter, management and workload domains, Supervisor</figcaption></figure>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Where it sits</th>
+<th>Address</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Jump host (Ubuntu)</td>
+<td>Outer lab network</td>
+<td>route <code>10.1.0.0/20</code> via <code>10.0.6.33</code>, DNS <code>10.0.4.17</code></td>
+</tr>
+<tr>
+<td>VyOS</td>
+<td>Outer lab network, edge of Holodeck</td>
+<td><code>10.0.6.33</code>; static route <code>10.200.200.0/24</code> to the holorouter</td>
+</tr>
+<tr>
+<td>Holorouter</td>
+<td>Between the outer network and every Holodeck VLAN</td>
+<td><code>eth1.10</code> <code>10.1.1.1/24</code>, <code>eth1.24</code> <code>10.1.8.129/25</code>, <code>eth1.200</code> <code>10.200.200.1/24</code></td>
+</tr>
+<tr>
+<td>Technitium DNS</td>
+<td>Host-network pod on the holorouter</td>
+<td><code>10.1.1.1</code>, answers UDP only from locally attached VLANs</td>
+</tr>
+<tr>
+<td>vCenter, SDDC Manager, NSX Manager, VCF Operations, VCF Automation</td>
+<td>Management domain <code>mgmt-a</code></td>
+<td>VLAN 10, <code>10.1.1.0/24</code>; SDDC Manager <code>10.1.1.5</code></td>
+</tr>
+<tr>
+<td>vCenter <code>vc-wld01-a</code></td>
+<td>Workload domain <code>wld01</code></td>
+<td>where Supervisor Services are enabled</td>
+</tr>
+<tr>
+<td>NSX Manager <code>nsx-wld01-a</code></td>
+<td>Workload domain <code>wld01</code></td>
+<td><code>10.1.1.24</code>; NSX projects <code>default</code> and <code>holo-east</code></td>
+</tr>
+<tr>
+<td>VNA cluster</td>
+<td>Workload domain, serves both projects</td>
+<td>SNAT <code>10.1.8.130</code> (default project), <code>10.200.200.3</code> (holo-east)</td>
+</tr>
+<tr>
+<td>Hosting namespace <code>argocd-demo</code></td>
+<td>Supervisor, VPC <code>vpc-argocd-demo</code>, project <code>holo-east</code></td>
+<td>Argo CD VIP <code>10.200.200.5</code></td>
+</tr>
+<tr>
+<td>Target namespace <code>podinfo-demo-vkjhr</code></td>
+<td>Supervisor, its own VPC, project <code>holo-east</code></td>
+<td>VKS cluster VMs (control plane 10.200.200.7:6443, nodes 10.17.17.x), podinfo LoadBalancer 10.200.200.8, and the podinfo vSphere Pods</td>
+</tr>
+</tbody>
+</table></div>
+<p>That is all the networking you need to follow the steps. How the tenant VPC reaches the outside through a Distributed VLAN Connection (DVC) on VLAN 200, with its own drawing and the full NSX object table, is in Part 2 under <em>Under the hood</em>, next to the gotcha's it explains.</p>
+<h2 id="before-you-start">Before you start</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Used in this lab</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VCF</td>
+<td>9.1.0 Holodeck, workload-domain NSX 9.1, Supervisor with NSX VPC networking</td>
+</tr>
+<tr>
+<td>Argo CD</td>
+<td>Argo CD Supervisor Service 1.2.0, which bundles upstream Argo CD 3.4.4</td>
+</tr>
+<tr>
+<td>Tenant</td>
+<td>VCF Automation organization <code>holo-east</code> with two vSphere Namespaces, each on its own VPC in the <code>holo-east</code> NSX project</td>
+</tr>
+<tr>
+<td>External connectivity</td>
+<td>A Distributed VLAN Connection on VLAN 200, gateway <code>10.200.200.1/24</code>, external block <code>10.200.200.0/24</code></td>
+</tr>
+<tr>
+<td>Jump host</td>
+<td>Ubuntu on the outer network with <code>kubectl</code> and the VCF CLI, whose <code>argocd</code> plugin provides the Argo CD commands; its setup is Appendix A in Part 2</td>
+</tr>
+<tr>
+<td>App</td>
+<td>podinfo 6.15.0 (<code>ghcr.io/stefanprodan/podinfo</code>), a small web app that shows which pod served the page</td>
+</tr>
+<tr>
+<td>CLI</td>
+<td>VCF CLI 9.0.2 with the argocd plugin v1.2.0. There is no standalone argocd binary, so every Argo CD command in this post is typed vcf argocd …</td>
+</tr>
+<tr>
+<td>Node images</td>
+<td>Subscribed content library VKS-1 (138 items, download on demand), set as the Supervisor's Kubernetes Service content library</td>
+</tr>
+<tr>
+<td>Cluster</td>
+<td>Kubernetes v1.35.5+vmware.1-vkr.1, Photon OS, cluster class builtin-generic-v3.6.0; control plane best-effort-small (2 vCPU, 4 GiB), workers best-effort-xsmall (2 vCPU, 2 GiB)</td>
+</tr>
+<tr>
+<td>Target namespace limits</td>
+<td>podinfo-demo-vkjhr raised to 200000Mi storage and 20000Mi memory (24000Mi for the seventh VM in step 6); the small class default of 100000Mi and 10000Mi cannot hold six node VMs</td>
+</tr>
+<tr>
+<td>Repository</td>
+<td><a href="https://github.com/sorinplaton/vcf-gitops/tree/blog-part1">github.com/sorinplaton/vcf-gitops</a>, public; every file in this post is there at tag <code>blog-part1</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>This post uses only Argo CD on VCF; a side-by-side comparison closes the Argo CD in one page section.</p>
+<p>The VCF Automation organization exists here because it is how the tenant got its NSX project, VPCs and namespaces; Argo CD itself never goes through it.</p>
+<h3 id="the-repository">The repository</h3>
+<p>Everything this post applies is in Git, and the links point at the tag <a href="https://github.com/sorinplaton/vcf-gitops/tree/blog-part1"><code>blog-part1</code></a>, so they keep showing what the lab ran even after <code>main</code> moves on. Code blocks below show the lines that matter; the full files are one click away.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Folder</th>
+<th>What it holds</th>
+<th>Watched by Argo CD</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clusters/</code></td>
+<td>The VKS cluster definition</td>
+<td>Yes, by <code>demo-vks-cluster</code></td>
+</tr>
+<tr>
+<td><code>apps/</code></td>
+<td>podinfo for the VKS cluster</td>
+<td>Yes, by <code>podinfo-vks</code></td>
+</tr>
+<tr>
+<td><code>argocd-apps/</code></td>
+<td>The three Applications as YAML, and a root Application</td>
+<td>No: applied with kubectl (step 6)</td>
+</tr>
+<tr>
+<td><code>platform/argocd/</code></td>
+<td>The live ArgoCD object and its config maps, exported</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>examples/</code></td>
+<td>Part 2's RBAC policy, Projects and deletion guard, not applied in the lab</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>lab/</code></td>
+<td>The Holodeck-only router changes</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>tools/capture/</code></td>
+<td>The script that took the screenshots</td>
+<td>No</td>
+</tr>
+</tbody>
+</table></div>
+<figure class="shot"><img src="blog/assets/p1-02.png" alt="GitHub repository sorinplaton/vcf-gitops at tag blog-part1: apps, argocd-apps, clusters, examples, lab, platform, tools and the README" loading="lazy"></figure>
+<p><em>S20. The repository at tag <code>blog-part1</code>.</em></p>
+<h3 id="preflight-eight-checks-before-step-1">Preflight: eight checks before step 1</h3>
+<p>Each row is a one-line test you can run from the jump host, with the place in this post that explains the fix. Rows marked <strong>Holodeck</strong> are problems of a nested lab; on production VCF the network team's router and DNS normally pass them already, but run the test anyway.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Test</th>
+<th>Passes when</th>
+<th>Fix in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Argo CD Supervisor Service installed</td>
+<td><code>kubectl api-resources \| grep argocd</code></td>
+<td><code>argocds</code> is listed</td>
+<td><a href="#step-1-enable-the-argo-cd-supervisor-service">Step 1</a></td>
+</tr>
+<tr>
+<td>DVC gateway answers (<strong>Holodeck</strong>)</td>
+<td><code>ping 10.200.200.1</code></td>
+<td>replies</td>
+<td><a href="#step-2-namespaces-the-vpc-load-balancer-and-the-network-nobody-documents">Step 2</a></td>
+</tr>
+<tr>
+<td>DNS answers over UDP from the VPC's VLAN (<strong>Holodeck</strong>)</td>
+<td>Now, from the jump host: <code>dig @10.1.1.1 projects.packages.broadcom.com +tcp</code>. Later, from VLAN 200: a UDP lookup from a VKS node or a vSphere Pod image pull</td>
+<td>TCP answers now; the VLAN 200 lookup answers later (a UDP timeout from the jump host is expected on Holodeck)</td>
+<td><a href="#step-2-namespaces-the-vpc-load-balancer-and-the-network-nobody-documents">Step 2</a></td>
+</tr>
+<tr>
+<td>Org VPC has a load balancer</td>
+<td><code>kubectl get vpcnetworkconfiguration &lt;ns-config&gt; -o jsonpath='{.status.vpcs[0].nsxLoadBalancerPath}'</code></td>
+<td>a <code>/vpc-lbs/</code> path</td>
+<td><a href="#step-2-namespaces-the-vpc-load-balancer-and-the-network-nobody-documents">Step 2</a></td>
+</tr>
+<tr>
+<td>Kubernetes releases exist</td>
+<td><code>kubectl get kr</code></td>
+<td>your release READY and COMPATIBLE True</td>
+<td><a href="#before-the-first-commit-three-things-the-supervisor-needs">Step 4</a></td>
+</tr>
+<tr>
+<td>A cluster class supports that release</td>
+<td><code>kubectl apply --dry-run=server -f cluster.yaml</code></td>
+<td><code>created (server dry run)</code></td>
+<td><a href="#before-the-first-commit-three-things-the-supervisor-needs">Step 4</a></td>
+</tr>
+<tr>
+<td>Target namespace can hold six VMs</td>
+<td><code>kubectl -n &lt;ns&gt; get storagepolicyquota</code></td>
+<td>limit above 120 GiB plus headroom, and memory above 18 GiB</td>
+<td><a href="#before-the-first-commit-three-things-the-supervisor-needs">Step 4</a></td>
+</tr>
+<tr>
+<td>VKS nodes can resolve registries (<strong>Holodeck</strong>)</td>
+<td>from a node, a UDP DNS query to its resolver</td>
+<td>an answer</td>
+<td><a href="#step-5-register-the-vks-cluster-and-deploy-podinfo">Step 5</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>Every screenshot in this post comes from the real run; the checklist at the end lists the few optional extras.</p>
+<h2 id="step-1-enable-the-argo-cd-supervisor-service">Step 1. Enable the Argo CD Supervisor Service</h2>
+<p>The Argo CD Operator is a Supervisor Service, installed once per Supervisor from the vSphere Client. It is a Broadcom-built Kubernetes Operator whose only job is the lifecycle of Argo CD instances: it teaches the Supervisor a new object type, <code>ArgoCD</code>, and whenever one appears in a namespace it builds, upgrades and repairs the instance behind it.</p>
+<p>In the 9.1.1 bill of materials the service is version <strong>1.2.0</strong> and it bundles upstream Argo CD <strong>3.4.4</strong> (the version the API reported once the lab instance was healthy).</p>
+<p><strong>Where the YAML comes from.</strong> The Argo CD Supervisor Service download on the Broadcom support portal is a small bundle: the service definition <code>supervisor-service-argocd-1.2.0-&lt;build&gt;.yml</code> (with <code>-legacy-</code> and <code>-depot-</code> variants for air-gapped installs), the customised <code>argocd</code> CLI, and the Operator release notes.</p>
+<p>The service YAML is what you hand to vCenter; inside it, <code>spec.template.spec.fetch.imgpkgBundle[].image</code> points at the OCI bundle the Operator is actually installed from, on Broadcom's registry:</p>
+<pre><code>projects.packages.broadcom.com/vsphere/supervisor/argocd-service/1.2.0/argocd-service:v1.2.0_vmware.1
+</code></pre>
+<p>That bundle is also readable from the jump host, which is the quickest way to see exactly what the Operator will deploy and which <code>spec.version</code> values it knows:</p>
+<pre><code># copy the exact image reference from the service YAML you downloaded
+grep -A2 imgpkgBundle supervisor-service-argocd-1.2.0-*.yml
+imgpkg pull -b projects.packages.broadcom.com/vsphere/supervisor/argocd-service/1.2.0/argocd-service:v1.2.0_vmware.1 \
+  -o ~/argocd-service-1.2.0
+ls ~/argocd-service-1.2.0/          # package YAML, CRD, sample ArgoCD manifests
+</code></pre>
+<p>In an air-gapped lab the same reference is what gets copied into a local software depot before the <code>-depot-</code> YAML is registered; the air-gapped guide in Sources has the procedure, and VCF Download Tool 9.1.1 fetches the whole bundle with <code>artifacts download --component SUPERVISOR_SERVICE_ARGOCD</code>.</p>
+<p>Then in the vSphere Client go to <strong>Supervisor Management &gt; Services</strong>, click <strong>Add</strong>, upload the service YAML, and on the new Argo CD card choose <strong>Install on Supervisors</strong> and pick the Supervisor.</p>
+<figure class="shot"><img src="blog/assets/p1-03.png" alt="ArgoCD Service card in the vSphere Client, status Active, one active version, installed on one Supervisor" loading="lazy"></figure>
+<p><em>The ArgoCD Service card under Supervisor Management &gt; Services once it is installed: one active version, one Supervisor. This is the only install step in the whole post.</em></p>
+<p>Check from the jump host that the Supervisor now knows the new noun:</p>
+<pre><code>vcf context use sv-a:argocd-demo-wqfbg
+kubectl api-resources | grep argocd
+</code></pre>
+<p><code>argocds</code> in the <code>argocd-service.vsphere.vmware.com</code> group is the Operator having registered its type. One caution for later: a Supervisor upgrade is blocked if a Supervisor Service such as Argo CD or Harbor is at a version the target Supervisor does not support, so keep the service current from the same Services page.</p>
+<h2 id="step-2-namespaces-the-vpc-load-balancer-and-the-network-nobody-documents">Step 2. Namespaces, the VPC load balancer, and the network nobody documents</h2>
+<p>Argo CD needs a <strong>hosting namespace</strong> to run in and at least one <strong>target namespace</strong> to deploy into.</p>
+<p>In this lab both belong to the VCF Automation organization <code>holo-east</code>, which created them on their own VPCs; in a vCenter-only lab you would create them under <strong>Supervisor Management &gt; Namespaces</strong> with a VM class and a storage policy attached to the target, since that is where the VKS cluster's VMs will land.</p>
+<p>Either way, the account that will apply the <code>ArgoCD</code> object needs <em>edit</em> or <em>owner</em> on the hosting namespace.</p>
+<figure class="shot"><img src="blog/assets/p1-04.png" alt="vSphere Client, Supervisor Management, Namespaces list of supervisor-wld01-a with argocd-demo-wqfbg and podinfo-demo-vkjhr" loading="lazy"></figure>
+<p><em>Supervisor Management &gt; Namespaces: the hosting namespace <code>argocd-demo-wqfbg</code> and the target <code>podinfo-demo-vkjhr</code>, each with its CPU, memory and storage use.</em></p>
+<p>Three things must be true before the first pod starts, and none of them are checked for you.</p>
+<blockquote>
+<p><strong>Holodeck only, from here to the load balancer.</strong> On production VCF the DVC gateway is your physical router and DNS is your corporate DNS: run the two tests below to confirm, and skip the holorouter fix.</p>
+<p>In a Holodeck lab nobody owns VLAN 200 until you make someone own it.</p>
+</blockquote>
+<p><strong>The DVC (Distributed VLAN Connection) gateway must exist.</strong> VCF Automation writes the VLAN, the gateway address and the external block into NSX and stops.</p>
+<p>Somebody has to own <code>10.200.200.1</code> on VLAN 200, or every SNATed packet leaves the VNA towards a MAC that does not exist. Verify from the jump host, which sits on the outer lab network, before going further:</p>
+<pre><code>ping 10.200.200.1          # the DVC gateway: must answer
+ip route get 10.200.200.3  # the SNAT address: must have a route
+</code></pre>
+<p><strong>DNS must answer over UDP from the new VLAN.</strong> The ESXi image fetcher resolves the registry with a UDP query first.</p>
+<p>The client is not the jump host. The registry lookup is a UDP query that leaves from VLAN 200: the ESXi image fetcher sends it for vSphere Pods, the node VMs send it for a VKS cluster.</p>
+<p>A DNS server that answers UDP only from its own VLANs, as the Holodeck one does, times out every one of those queries while <code>dig +tcp</code> from the jump host succeeds and hides the problem. So test with UDP, from VLAN 200:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Run from</th>
+<th>When</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Jump host, on the outer lab network</td>
+<td>Before anything exists</td>
+<td>Only that the DNS server is up. On Holodeck, UDP from here times out even when VLAN 200 is fixed, because the jump host is not on one of the holorouter's own VLANs</td>
+</tr>
+<tr>
+<td>A VKS node, on VLAN 200</td>
+<td>Once the cluster exists (step 5)</td>
+<td>The real client path for VKS clusters. A timeout here is what the step 5 DNS fix solves</td>
+</tr>
+<tr>
+<td>The pods themselves</td>
+<td>After the first vSphere Pod deploy</td>
+<td>For vSphere Pods the image pull is the test: pods Running and no <code>ErrImagePull</code></td>
+</tr>
+</tbody>
+</table></div>
+<pre><code># 1. Jump host (outer lab network): proves the server is up, nothing more
+dig @10.1.1.1 projects.packages.broadcom.com +tcp   # must answer
+dig @10.1.1.1 projects.packages.broadcom.com        # UDP: times out on Holodeck from here
+
+# 2. A VKS node (VLAN 200), once the cluster exists: the real client path
+kubectl --context demo-vks-cluster -n kube-system exec ds/antrea-agent -c antrea-agent -- \
+  getent hosts ghcr.io                              # must print an address
+
+# 3. vSphere Pods: the image pull is the test
+kubectl -n podinfo-demo-vkjhr get pods             # Running, no ErrImagePull
+</code></pre>
+<p>In this lab both were fixed at once by making VLAN 200 a sub-interface of the holorouter, so the VPC became a local client of the DNS:</p>
+<pre><code># holorouter, persisted as /usr/local/bin/holo-vlan200.sh in a oneshot systemd unit
+ip link add link eth1 name eth1.200 type vlan id 200
+ip link set eth1.200 mtu 8000 up
+ip addr add 10.200.200.1/24 dev eth1.200
+arping -U -c 3 -I eth1.200 10.200.200.1    # tell the VNA the gateway MAC changed
+
+# DNS redirect for the VKS nodes, which ask 10.1.1.1 directly (see below)
+iptables -t nat -I PREROUTING -i eth1.200 -d 10.1.1.1/32 -p udp --dport 53 \
+  -j DNAT --to-destination 10.200.200.1:53
+
+# VyOS: release the gateway, keep forwarding the block to the holorouter
+configure
+set protocols static route 10.200.200.0/24 next-hop 10.0.6.33
+# next-hop the holorouter ip
+commit; save
+</code></pre>
+<p>The sub-interface is enough for vSphere Pods. The <code>iptables</code> line is for the VKS nodes built in step 4: they use <code>10.1.1.1</code> as their resolver, and from VLAN 200 that address did not answer UDP while the holorouter's own VLAN 200 address did, so the redirect sends their queries to <code>10.200.200.1</code>. It was found in step 5, when the first pod could not pull its image; both holorouter changes live in the same script so they survive a reboot.</p>
+<p><strong>The org VPC needs a load balancer, and it is off by default.</strong> With NSX load balancing, a <code>LoadBalancer</code> service gets its VIP from a load balancer on the namespace's VPC. The VPCs the Supervisor created for its own namespaces had one; the two VPCs VCF Automation created for <code>holo-east</code> did not (<code>load_balancer_vpc_endpoint.enabled: false</code>, nothing under <code>vpc-lbs</code>). Until one exists, every <code>LoadBalancer</code> service in the namespace sits at <code>&lt;pending&gt;</code>, and NCP logs <code>NCP00270 … Lbs &lt;ns&gt; is not found</code> beneath the generic "Generic error occurred during realizing network for Service" event.</p>
+<p>The simplest fix is to avoid the problem: when you create the VPC in the VCF Automation tenant portal, switch <strong>Enable load balancing</strong> to Yes.</p>
+<p>The form defaults to No, and its own warning says what that breaks.</p>
+<figure class="shot"><img src="blog/assets/p1-05.png" alt="VCF Automation VPC creation form: Enable load balancing toggle set to No, with the warning that disabling load balancing will prevent vSphere Kubernetes Service and other capabilities requiring load balancers from functioning in namespaces associated with this VPC" loading="lazy"></figure>
+<p><em>The VPC creation form in VCF Automation. Enable load balancing defaults to No; the warning underneath says it prevents VKS "and other capabilities requiring Load Balancers" from working in the VPC's namespaces. Switch it on before you click Create.</em></p>
+<p>If the VPC already exists without one, add it from the NSX Manager UI:</p>
+<ol>
+<li>Log in to the workload-domain NSX Manager and switch the <strong>Project</strong> selector at the top from <em>Default</em> to <code>holo-east</code>.</li>
+<li>Go to <strong>VPCs &gt; Virtual Private Clouds</strong>, expand the org VPC (here <code>vpc-argocd-demo-isedcb</code> for the hosting namespace and <code>vpc-podinfo-demo-l2x8e4</code> for the target), and open its <strong>Network Services</strong> section.</li>
+<li>Click <strong>Add Load Balancer</strong>, size <strong>Small</strong>, and save. Repeat for the second org VPC.</li>
+<li>Wait for the NSX operator's next sync, then confirm the Supervisor has picked it up:</li>
+</ol>
+<pre><code>kubectl get vpcnetworkconfiguration &lt;ns-config&gt; \
+  -o jsonpath='{.status.vpcs[0].nsxLoadBalancerPath}'
+# /orgs/default/projects/.../vpcs/vpc-argocd-demo-.../vpc-lbs/lb-...
+</code></pre>
+<p>Either way, the load balancer must exist before <code>argocd-server</code> can get a VIP.</p>
+<figure class="shot"><img src="blog/assets/p1-06.png" alt="NSX Manager, project holo-east, VPC vpc-podinfo-demo-l2x8e4 expanded: private CIDR 10.17.17.0/24, Network Services with NSX Load Balancer View Configuration" loading="lazy"></figure>
+<p><em>S3. NSX Manager, project <code>holo-east</code>: the target VPC <code>vpc-podinfo-demo-l2x8e4</code> expanded, with its NSX Load Balancer under Network Services.</em></p>
+<figure class="shot"><img src="blog/assets/p1-07.png" alt="Terminal: kubectl get vpcnetworkconfiguration, then the nsxLoadBalancerPath of the podinfo namespace ending in vpc-lbs/lb-fhhy" loading="lazy"></figure>
+<p><em>The Supervisor's side of the same load balancer: <code>nsxLoadBalancerPath</code> for <code>podinfo-demo-vkjhr</code> ends in <code>/vpc-lbs/lb-fhhy</code>. Empty output here means LoadBalancer services in that namespace will stay pending.</em></p>
+<h2 id="step-3-deploy-the-argo-cd-instance">Step 3. Deploy the Argo CD instance</h2>
+<p>One small object is all the Operator needs. The minimal manifest below is the one from Broadcom's <em>Example Argo CD Manifests</em> page for the Supervisor Service, with the lab's names filled in; the full field list is in the <em>Argo CD Custom Resource Reference</em>, and once the Operator is installed the Supervisor can print it for you:</p>
+<pre><code>kubectl explain argocd.spec --recursive        # every field the 1.2.0 Operator accepts
+kubectl get crd argocds.argocd-service.vsphere.vmware.com -o yaml | less
+</code></pre>
+<p>Save it as <code>argocd-instance.yaml</code>. The only required field is <code>spec.version</code>; the replica counts (one of each by default) decide non-HA versus HA.</p>
+<p>This is the object as it runs in the lab, exported to <a href="https://github.com/sorinplaton/vcf-gitops/blob/blog-part1/platform/argocd/argocd-instance.yaml"><code>platform/argocd/argocd-instance.yaml</code></a>:</p>
+<pre><code>apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ArgoCD
+metadata:
+  name: argocd-1
+  namespace: argocd-demo-wqfbg      # the hosting namespace
+spec:
+  version: 3.4.4+vmware.1-vks.1     # pick from the versions your Operator lists
+  enableLoadBalancer: true          # argocd-server gets a VIP from the VPC load balancer
+  serverSideDiff: true
+</code></pre>
+<pre><code>vcf context use sv-a:argocd-demo-wqfbg
+kubectl apply -f argocd-instance.yaml
+kubectl get argocd -n argocd-demo-wqfbg -w
+</code></pre>
+<p>What happens underneath is worth knowing before anything goes wrong. The Operator does not run Argo CD directly; it renders a <strong>kapp <code>PackageInstall</code></strong> (Carvel), which reconciles every 10 minutes and owns the actual Kubernetes objects.</p>
+<blockquote>
+<p><strong>Don't want to wait 10 minutes?</strong> Trigger a reconcile now with the Carvel CLI, for example after deleting a failed Job:</p>
+<p><code>kctrl package installed kick -i argocd-1-argocd-pkgi -n argocd-demo-wqfbg</code></p>
+<p>This only forces one pass; it does not change the 10-minute period, which the Operator owns. It is also unrelated to Argo CD's own 3-minute Git polling in step 6.</p>
+</blockquote>
+<p>Those objects are the upstream Argo CD deployments (<code>argocd-server</code>, <code>argocd-repo-server</code>, <code>argocd-application-controller</code>, <code>argocd-redis</code>), a one-shot Job <code>argocd-redis-secret-init</code> that writes the <code>argocd-redis</code> secret, and a <code>LoadBalancer</code> service for the UI.</p>
+<p>On a Supervisor every pod is a small VM, so each of those runs as a PodVM in the hosting namespace: image pulls are done by the ESXi image fetcher through the VPC's SNAT, and a pod whose mounted secret is missing goes straight to the terminal phase <code>ProviderFailed</code> instead of waiting in <code>ContainerCreating</code>.</p>
+<pre><code>kubectl get packageinstall,pods,svc -n argocd-demo-wqfbg
+</code></pre>
+<p>Healthy looks like: the PackageInstall at <em>Reconcile succeeded</em>, four pods <code>1/1 Running</code>, the <code>argocd-redis-secret-init</code> job <em>Completed</em>, and <code>argocd-server</code> with an <code>EXTERNAL-IP</code> from the VPC's external block. In this lab that VIP was <code>10.200.200.5</code>.</p>
+<figure class="shot"><img src="blog/assets/p1-08.png" alt="Terminal: ArgoCD argocd-1 Ready, PackageInstall Reconcile succeeded, Argo CD pods Running and the redis secret init job Completed" loading="lazy"></figure>
+<p><em>Healthy, as it looks in the terminal: <code>argocd-1</code> Ready, the PackageInstall at Reconcile succeeded, four pods Running and <code>argocd-redis-secret-init</code> Completed.</em></p>
+<figure class="shot"><img src="blog/assets/p1-09.png" alt="Terminal: argocd-server service, type LoadBalancer, external IP 10.200.200.5, ports 80 and 443" loading="lazy"></figure>
+<p><em><code>argocd-server</code> with its VIP, <code>10.200.200.5</code>, from the VPC load balancer.</em></p>
+<figure class="shot"><img src="blog/assets/p1-10.png" alt="vSphere Client inventory showing Supervisor namespaces, including the Argo CD Operator&#x27;s svc-argocd-service namespace, the auto-attach service namespace, and three podinfo pods running as VMs on esx-05a" loading="lazy"></figure>
+<p>In the vCenter inventory: <code>argocd-demo-wqfbg</code> is the hosting namespace; <code>svc-argocd-service-o335x</code> is where the Operator itself runs; <code>svc-auto-attach-5gei8</code> is the 9.1.1 VKS auto-attach service; and the three <code>podinfo-*</code> pods in <code>podinfo-demo-vkjhr</code> are vSphere Pods that Git deployed straight into a namespace (more on these at the end of the post).</p>
+<p>Log in. The Operator supports two authentication modes: Argo CD local accounts, or OIDC single sign-on against your own identity provider. The lab uses the local <code>admin</code> account; its initial password is in the secret the instance creates in the hosting namespace (check <code>kubectl get secrets -n &lt;hosting-ns&gt;</code> for the exact name on your Operator version, upstream calls it <code>argocd-initial-admin-secret</code>).</p>
+<pre><code>kubectl -n argocd-demo-wqfbg get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d; echo
+vcf argocd login 10.200.200.5 --username admin --insecure
+# 'admin:login' logged in successfully
+vcf argocd version          # the plugin, v1.2.0; the UI's top-left shows the server, v3.4.4
+</code></pre>
+<p>One detail from this build: the instance is deployed with <code>cluster.inClusterEnabled=false</code>, so unlike upstream Argo CD it does not register itself as a target.</p>
+<p>The hosting namespace is where Argo CD lives, not somewhere it deploys to, until you register a namespace in the next step.</p>
+<h2 id="step-4-register-the-namespace-and-create-a-vks-cluster-from-git">Step 4. Register the namespace and create a VKS cluster from Git</h2>
+<p>Argo CD on VCF has two kinds of target, and keeping them apart is most of the design.</p>
+<ul>
+<li><strong>A vSphere Namespace</strong> (target 1) gives Git the Supervisor's own objects: a <code>Cluster</code> that the Supervisor turns into node VMs, VM Service virtual machines, vSphere Pods. Argo CD's rights stop at the namespaces you register, so this target builds infrastructure and nothing else.</li>
+<li><strong>A VKS cluster</strong> (target 2) gives Git what runs inside that cluster: Deployments, Services, Helm charts. Here Argo CD holds cluster-admin, so this target fills the house that target 1 built.</li>
+</ul>
+<p>Same engine, two targets: one for the platform team's infrastructure, one for the app team's workloads.</p>
+<p>This post uses both. Target 1 is the namespace <code>podinfo-demo-vkjhr</code>: the <code>demo-vks-cluster</code> Application builds the six VMs through it in this step, and the <code>podinfo</code> Helm app at the end of the post runs vSphere Pods through it.</p>
+<p>Target 2 is <code>demo-vks-cluster</code> itself, registered in step 5: the <code>podinfo-vks</code> Application deploys podinfo inside it.</p>
+<figure class="diagram"><img src="blog/assets/diagram-two-targets.png" alt="two targets · the namespace builds the VMs, the cluster runs the apps" loading="lazy"><figcaption>two targets · the namespace builds the VMs, the cluster runs the apps</figcaption></figure>
+<p>Connect the repository first, then set up target 1. The customised CLI recognises a Supervisor: it gives the instance credentials bound to the namespaces you list, so it can only ever touch those namespaces, and it registers the target under an in-cluster address with the namespace as a context parameter, <code>https://kubernetes.default.svc/?context=&lt;namespace&gt;</code>, rather than the Supervisor's external IP.</p>
+<p>That URL is what you pass as <code>--dest-server</code> from now on.</p>
+<pre><code>vcf argocd repo add https://github.com/sorinplaton/vcf-gitops.git --name vcf-gitops
+# Repository 'https://github.com/sorinplaton/vcf-gitops.git' added   (public repo: no token)
+vcf argocd cluster add &lt;supervisor-context&gt; \
+  --namespace podinfo-demo-vkjhr --kubeconfig ~/.kube/config
+vcf argocd cluster list
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-11.png" alt="Argo CD Settings &gt; Clusters showing one registered target: the Supervisor namespace, URL https://kubernetes.default.svc/?context=podinfo-demo-vkjhr, version v1.32.9, connection status Successful" loading="lazy"></figure>
+<p><em>Target 1 registered: the Supervisor namespace registered as an Argo CD cluster. Note the URL form, the Supervisor's own Kubernetes version (v1.32.9) and the connection check. The VKS cluster will appear as a second row on port 6443 in step 5.</em></p>
+<h3 id="before-the-first-commit-three-things-the-supervisor-needs">Before the first commit: three things the Supervisor needs</h3>
+<p>Argo CD will happily apply a Cluster object the Supervisor cannot build. None of the following is checked at sync time, and each one cost this lab an hour or more (don't ask how i know), so check them first.</p>
+<p><strong>Kubernetes releases.</strong> The Supervisor builds node VMs only from a release it knows. On a fresh Supervisor <code>kubectl get kr</code> can return <code>No resources found</code> even with a subscribed library attached, because adding a library to the Supervisor's general content libraries is not enough.</p>
+<p>In the vSphere Client, create a subscribed content library (here <code>VKS-1</code>, subscription URL <code>https://wp-content.broadcom.com/v2/latest/lib.json</code>, download on demand), then go to <strong>Supervisor Management &gt; Supervisors &gt;</strong> your Supervisor <strong>&gt; Configure &gt; Supervisor &gt; General</strong>, and in the <strong>Kubernetes Service</strong> section set that library as the content library.</p>
+<p>Keep in mind this is a lab shortcut: one subscribed library pointed straight at Broadcom's public feed. In production, content libraries are managed centrally in a publish-and-subscribe model: one publisher library, which can sit in an air-gapped site (<a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/vsphere-supervisor-installation-and-configuration/updating-vsphere-supervisor/updating-the-vsphere-with-tanzu-environment/configuring-a-subscribed-content-library-for-supervisor-images-in-air-gapped-environment/create-a-remote-content-library-pulisher-in-a-local-environment.html">Broadcom: remote content library publisher for Supervisor releases</a>), with every Supervisor's Kubernetes Service library subscribed to it. VM images for tenants can also be offered centrally as provider content libraries in VCF Automation (<a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/organization-management/adding-and-managing-content-libraries.html">Broadcom: managing content libraries in VCF Automation</a>).</p>
+<p>Releases appeared 39 seconds later:</p>
+<pre><code>kubectl get kr
+NAME                       VERSION                  READY   COMPATIBLE   CREATED
+v1.35.5---vmware.1-vkr.1   v1.35.5+vmware.1-vkr.1   True    True         14h
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-12.png" alt="vSphere Client, Supervisor supervisor-wld01-a, Configure, General, Kubernetes Service section expanded with content library VKS-1, type Subscribed" loading="lazy"></figure>
+<p><em>Supervisor Management &gt; Supervisors &gt; <code>supervisor-wld01-a</code> &gt; Configure &gt; Supervisor &gt; General, Kubernetes Service section expanded: <code>VKS-1</code>, Subscribed, is the library the Supervisor builds node VMs from.</em></p>
+<p><strong>A cluster class new enough for that release.</strong> The tenant namespaces carried <code>builtin-generic-v3.1.0</code> to <code>v3.3.0</code> only, all labelled <code>max-version-supported: v1.32</code>. The newer classes live in <code>vmware-system-vks-public</code>, and a Cluster can reference them across namespaces. <code>builtin-generic-v3.6.0</code> has no upper limit, so it pairs with v1.35.5:</p>
+<pre><code>kubectl get clusterclass -A --show-labels | grep max-version
+kubectl apply --dry-run=server -f clusters/demo-vks-cluster/cluster.yaml   # must say &quot;created (server dry run)&quot;
+</code></pre>
+<p><strong>Namespace room for six VMs.</strong> Every node VM gets a 20 GiB disk, and the six VMs ask for 18 GiB of memory in total.</p>
+<p>The <code>small</code> namespace class that VCF Automation applied allows 100000Mi of storage (about 98 GiB) and 10000Mi of memory, so the fifth VM was refused by the storage quota admission webhook.</p>
+<p>Raise both before you sync. In the VCF Automation org portal the limits show under <strong>Manage &amp; Govern &gt; Namespaces &gt;</strong> the namespace, memory under Capacity and storage under Storage class, in GB (20000Mi reads 19.53 GB, 200000Mi reads 195.31 GB). As the organization admin from the jump host, the change is:</p>
+<pre><code>kubectl --server https://auto-a.site-a.vcf.lab/cci/kubernetes -n default-project \
+  patch supervisornamespace podinfo-demo-vkjhr --type json -p '[
+  {&quot;op&quot;:&quot;replace&quot;,&quot;path&quot;:&quot;/spec/classConfigOverrides/storageClasses/0/limit&quot;,&quot;value&quot;:&quot;200000Mi&quot;},
+  {&quot;op&quot;:&quot;replace&quot;,&quot;path&quot;:&quot;/spec/classConfigOverrides/zones/0/memoryLimit&quot;,&quot;value&quot;:&quot;20000Mi&quot;}]'
+kubectl -n podinfo-demo-vkjhr get storagepolicyquota    # limit: 200000Mi
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-13.png" alt="VCF Automation, org holo-east, namespace podinfo-demo-vkjhr, Capacity section with memory limit 19.53 GB" loading="lazy"></figure>
+<p><em>VCF Automation, Manage &amp; Govern &gt; Namespaces &gt; <code>podinfo-demo-vkjhr</code>: the memory limit after the change, 19.53 GB (20000Mi).</em></p>
+<figure class="shot"><img src="blog/assets/p1-14.png" alt="VCF Automation, same namespace scrolled to Storage class: cluster-wld01-01a-vsan-storage-policy with a 195.31 GB limit" loading="lazy"></figure>
+<p><em>Same page, Storage class: <code>cluster-wld01-01a-vsan-storage-policy</code> at 195.31 GB (200000Mi).</em></p>
+<p>Commit the cluster definition as <code>clusters/demo-vks-cluster/cluster.yaml</code> (<a href="https://github.com/sorinplaton/vcf-gitops/blob/blog-part1/clusters/demo-vks-cluster/cluster.yaml">full file</a>, unchanged since commit <code>7ec073f</code>).</p>
+<p>The lines that matter: the cluster class and release chosen above, three control-plane nodes on <code>best-effort-small</code>, and one worker pool of three on <code>best-effort-xsmall</code>, set as a per-pool <code>variables.overrides</code> entry.</p>
+<p>The <code>argocd.argoproj.io/sync-wave: '0'</code> annotation in the full file makes the cluster sync before anything that depends on it once add-ons arrive.</p>
+<pre><code># excerpt of clusters/demo-vks-cluster/cluster.yaml
+kind: Cluster
+metadata:
+  name: demo-vks-cluster
+spec:
+  topology:
+    classRef:
+      name: builtin-generic-v3.6.0
+      namespace: vmware-system-vks-public
+    version: v1.35.5+vmware.1-vkr.1
+    controlPlane:
+      replicas: 3                         # vmClass best-effort-small (topology variable)
+    workers:
+      machineDeployments:
+      - class: node-pool
+        name: node-pool-1
+        replicas: 3                       # vmClass best-effort-xsmall (per-pool override)
+</code></pre>
+<p>Create the Application against the Supervisor namespace and sync it. Leave this one on manual sync: it builds infrastructure, and you want a person to press the button.</p>
+<pre><code>vcf argocd app create demo-vks-cluster \
+  --repo https://github.com/sorinplaton/vcf-gitops.git --path clusters/demo-vks-cluster \
+  --dest-server 'https://kubernetes.default.svc/?context=podinfo-demo-vkjhr' \
+  --dest-namespace podinfo-demo-vkjhr
+vcf argocd app sync demo-vks-cluster
+vcf argocd app wait demo-vks-cluster --timeout 3600
+kubectl -n podinfo-demo-vkjhr get cluster,machines -o wide     # the real finish line
+</code></pre>
+<p><strong>Timing.</strong> About 30 minutes for a clean 3 + 3 build. This lab took longer because of boot failures and a storage quota, both covered in Part 2.</p>
+<p><strong>Reading <code>app wait</code>.</strong> "Healthy" means Argo CD applied the Cluster object, not that all six VMs are ready, and its <code>Duration</code> is the sync, not the build.</p>
+<p>The real finish line is the last command above: wait until <code>kubectl get cluster,machines</code> shows <code>CP AVAILABLE 3</code> and <code>W AVAILABLE 3</code>.</p>
+<p>And the Cluster reports Healthy slightly early: here the app went Healthy with five of six machines Running.</p>
+<p>The real finish line is <code>CP AVAILABLE 3</code> and <code>W AVAILABLE 3</code> on the Cluster.</p>
+<figure class="shot"><img src="blog/assets/p1-15.png" alt="Argo CD UI, application demo-vks-cluster in tree view, health Progressing, sync status Synced to HEAD 7ec073f" loading="lazy"></figure>
+<p><em>Argo CD, application <code>demo-vks-cluster</code> Synced to <code>7ec073f</code>, health Progressing. The app holds a single object, the Cluster; everything else is the Supervisor's work. (Use the tree view: the Network view is empty for an app that contains only a Cluster.)</em></p>
+<figure class="shot"><img src="blog/assets/p1-16.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, one control-plane VM Powered On" loading="lazy"></figure>
+<p><em>Ten minutes in: the first control-plane VM, Powered On.</em></p>
+<figure class="shot"><img src="blog/assets/p1-17.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, five VMs, one still Powered Off, Recent Tasks running" loading="lazy"></figure>
+<p><em>five VMs, the second control-plane VM still Powered Off, Recent Tasks busy.</em></p>
+<figure class="shot"><img src="blog/assets/p1-18.png" alt="Terminal: vcf argocd app wait ending Synced and Healthy, then kubectl get cluster and machines showing 3 control plane and 3 workers Running" loading="lazy"></figure>
+<p><em><code>app wait</code> ends Synced / Healthy; <code>kubectl get cluster,machines</code> underneath shows the real finish line, three control-plane and three worker machines Running.</em></p>
+<figure class="shot"><img src="blog/assets/p1-19.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, Compute, Kubernetes clusters: demo-vks-cluster Available, 3 workers, v1.35.5, control plane 10.200.200.7" loading="lazy"></figure>
+<p><em>vCenter knows it is a cluster, not just six VMs: Supervisor Management &gt; Namespaces &gt; <code>podinfo-demo-vkjhr</code> &gt; Compute &gt; VMware Resources &gt; Kubernetes clusters shows <code>demo-vks-cluster</code>, Available, 3 workers, v1.35.5, control plane at 10.200.200.7.</em></p>
+<h2 id="step-5-register-the-vks-cluster-and-deploy-podinfo">Step 5. Register the VKS cluster and deploy podinfo</h2>
+<p>Now register target 2. <strong>What changes from target 1:</strong> the Argo CD command is the same, the kube context is not. Adding <code>--tanzu-kubernetes-cluster-namespace</code> and <code>--tanzu-kubernetes-cluster-name</code> to the login gives a context for the cluster's own API, so <code>vcf argocd cluster add</code> registers <code>https://10.200.200.7:6443</code> instead of the in-cluster namespace URL, and needs no <code>--namespace</code>.</p>
+<p>The rights change with it. Instead of a RoleBinding scoped to one vSphere Namespace, the CLI creates an <code>argocd-manager</code> service account in <code>kube-system</code> with a ClusterRole, a ClusterRoleBinding and a long-lived token. That is standard upstream behaviour, and the thing to remember when reading the RBAC section below.</p>
+<pre><code>kubectl vsphere login --server 10.1.8.132 --vsphere-username administrator@vsphere.local \
+  --insecure-skip-tls-verify \
+  --tanzu-kubernetes-cluster-namespace podinfo-demo-vkjhr \
+  --tanzu-kubernetes-cluster-name demo-vks-cluster      # creates the kube context demo-vks-cluster
+vcf argocd cluster add demo-vks-cluster -y
+#  ServiceAccount &quot;argocd-manager&quot; created in namespace &quot;kube-system&quot;
+#  ClusterRole &quot;argocd-manager-role&quot; created
+#  ClusterRoleBinding &quot;argocd-manager-role-binding&quot; created
+#  Created bearer token secret &quot;argocd-manager-long-lived-token&quot; for ServiceAccount &quot;argocd-manager&quot;
+#  Cluster 'https://10.200.200.7:6443' added
+vcf argocd cluster list
+SERVER                                                                     NAME              VERSION  STATUS
+https://kubernetes.default.svc/?context=podinfo-demo-vkjhr (1 namespaces)  podinfo-demo      v1.32.9  Successful
+https://10.200.200.7:6443                                                  demo-vks-cluster  v1.35.5  Successful
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-20.png" alt="Argo CD UI, Settings, Clusters: demo-vks-cluster on 10.200.200.7:6443 and podinfo-demo on kubernetes.default.svc, both Successful" loading="lazy"></figure>
+<p><em>Both targets registered. Argo CD's Settings &gt; Clusters with the VKS cluster on port 6443 (Kubernetes v1.35.5) and the Supervisor namespace on its in-cluster URL (v1.32.9), both Successful. The cluster row shows Unknown until an application targets it; that is cosmetic.</em></p>
+<blockquote>
+<p><strong>On 9.1.1, why not auto-attach?</strong> A VKSM auto-attach component can register new VKS clusters for you, but only once a policy exists, and none does by default. If <code>kubectl get entitymanagementpolicies -A</code> returns nothing, register by hand as above. Details in Part 2, <em>Auto-attach on 9.1.1</em>.</p>
+</blockquote>
+<p><strong>Holodeck only: node DNS.</strong> VKS nodes resolve registries through <code>10.1.1.1</code>. Without the DNS redirect from step 2, the first pod failed with <code>lookup ghcr.io on 127.0.0.53:53 ... i/o timeout</code>. With it in place, check from a node before deploying:</p>
+<pre><code>kubectl --context demo-vks-cluster -n kube-system exec ds/antrea-agent -c antrea-agent -- \
+  getent hosts ghcr.io                              # must print an address
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-21.png" alt="Terminal: getent hosts ghcr.io from a VKS node returns 140.82.114.33, and the node&#x27;s resolv.conf lists nameserver 10.1.1.1" loading="lazy"></figure>
+<p><em>The check after the fix, run from a node through its <code>antrea-agent</code> pod: the resolver is still <code>10.1.1.1</code>, and <code>ghcr.io</code> now resolves.</em></p>
+<p>Commit the app as <code>apps/podinfo/podinfo.yaml</code> (<a href="https://github.com/sorinplaton/vcf-gitops/blob/9313393/apps/podinfo/podinfo.yaml">as first committed in <code>9313393</code></a>, with one replica). podinfo is a small Go web app made for this kind of demo: its page shows the pod that served it, so scaling is visible in a browser.</p>
+<p>Keep the security context; it is what lets the pod run under the restricted Pod Security Admission that VKS clusters enforce. The Service is <code>LoadBalancer</code>, so the browser reaches it through the VPC load balancer without a port-forward.</p>
+<pre><code># excerpt of apps/podinfo/podinfo.yaml
+kind: Deployment
+spec:
+  replicas: 1                             # step 6 changes this line to 3
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: podinfo
+        image: ghcr.io/stefanprodan/podinfo:6.15.0
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: [&quot;ALL&quot;]}
+---
+kind: Service
+spec:
+  type: LoadBalancer
+  ports: [{name: http, port: 9898, targetPort: http}]
+</code></pre>
+<pre><code>vcf argocd app create podinfo-vks \
+  --repo https://github.com/sorinplaton/vcf-gitops.git --path apps/podinfo \
+  --dest-server https://10.200.200.7:6443 --dest-namespace podinfo \
+  --sync-option CreateNamespace=true \
+  --sync-policy automated --self-heal --auto-prune
+vcf argocd app wait podinfo-vks
+kubectl --context demo-vks-cluster -n podinfo get svc podinfo
+# EXTERNAL-IP 10.200.200.8   PORT(S) 9898
+</code></pre>
+<p>The load balancer handed out <code>10.200.200.8</code> after the sync, and the page answered at <code>http://10.200.200.8:9898</code> one second later.</p>
+<figure class="shot"><img src="blog/assets/p1-22.png" alt="Argo CD podinfo-vks Network view with three Pods; the popover on one Pod shows Node demo-vks-cluster-node-pool-1-t7n2z-87mq4-f74d6" loading="lazy"></figure>
+<p><em>Argo CD, <code>podinfo-vks</code>, Network view: traffic enters at <code>10.200.200.8</code>, goes through the <code>podinfo</code> Service to three Pods. The popover on one Pod shows the node it runs on, <code>demo-vks-cluster-node-pool-1-t7n2z-87mq4-f74d6</code>, one of the worker VMs from S9.</em></p>
+<figure class="shot"><img src="blog/assets/p1-23.png" alt="podinfo page in a browser at 10.200.200.8:9898: greetings from podinfo v6.15.0, served by podinfo-5448f4f4fb-jtzj8" loading="lazy"></figure>
+<p><em>podinfo at <code>http://10.200.200.8:9898</code>, "greetings from podinfo v6.15.0", served by pod <code>podinfo-5448f4f4fb-jtzj8</code>. A container on a VM that a commit created.</em></p>
+<h2 id="step-6-prove-it-is-gitops">Step 6. Prove it is GitOps</h2>
+<p>So far, nothing <code>kubectl apply</code> couldn't do. Two changes prove otherwise. <code>podinfo-vks</code> already has automated sync, self-heal and prune turned on; for an app without them, one command flips the switch:</p>
+<pre><code>vcf argocd app set podinfo-vks --sync-policy automated --self-heal --auto-prune
+</code></pre>
+<p>Now edit <code>apps/podinfo/podinfo.yaml</code> in Git, change <code>replicas: 1</code> to <code>replicas: 3</code>, commit and push. Do nothing else. Argo CD polls the repository (<code>timeout.reconciliation</code>, three minutes by default; Refresh in the UI hurries it), so the delay depends on where in that cycle the push lands. Here commit <code>448b0d3</code> was pushed and three pods were running 16 seconds later, with no sync typed by anyone.</p>
+<figure class="shot"><img src="blog/assets/p1-24.png" alt="Left: GitHub commit 448b0d3 diff changing replicas 1 to 3. Right: Argo CD podinfo-vks Network view with three Pods, Synced to 448b0d3" loading="lazy"></figure>
+<p><em>Cause and effect with no terminal in the picture: the commit diff on the left (<code>replicas: 1</code> to <code>replicas: 3</code>), Argo CD on the right with three Pods, Synced to <code>448b0d3</code>.</em></p>
+<p>Second, break it by hand and watch it heal:</p>
+<pre><code>kubectl --context demo-vks-cluster -n podinfo scale deployment podinfo --replicas=1
+kubectl --context demo-vks-cluster -n podinfo get pods -w
+</code></pre>
+<p>The count drops to one, Argo CD notices the drift, and four seconds later three pods are Ready again.</p>
+<p>Git won.</p>
+<p>Look for that sync in the right place: <code>argocd app history</code> lists only syncs to new revisions, while a self-heal is recorded in the Application's status as <code>initiatedBy: automated</code>.</p>
+<figure class="shot"><img src="blog/assets/p1-25.gif" alt="Animation: Argo CD podinfo-vks Network view; after a manual scale to one replica two pods terminate, the app goes OutOfSync, and within about six seconds two new pods appear and it returns to Synced and Healthy" loading="lazy"></figure>
+<p><em>The same self-heal, as it looks in Argo CD, one frame a second: two pods terminate, the app flips to OutOfSync, and about six seconds later it is back to three pods, Synced and Healthy.</em></p>
+<figure class="shot"><img src="blog/assets/p1-26.png" alt="Terminal: kubectl scale to 1 replica, watch output with two pods Terminating and two new pods Running, app history and the automated sync operation" loading="lazy"></figure>
+<p><em>Self-heal: the manual scale to one, two pods Terminating and two new ones Running in the watch, and the Application's last operation, <code>initiatedBy={"automated":true}</code>, phase Succeeded.</em></p>
+<h3 id="target-1-again-a-seventh-vm-from-one-line">Target 1 again: a seventh VM from one line</h3>
+<p>The same move works on the cluster itself.</p>
+<p>Before it, the namespace memory limit went from 20000Mi to 24000Mi in VCF Automation, because seven node VMs ask for 20 GiB; storage at 200000Mi already had room.</p>
+<p>Then one line changed in <code>cluster.yaml</code>, <code>replicas: 3</code> to <code>replicas: 4</code> under <code>node-pool-1</code>, through <a href="https://github.com/sorinplaton/vcf-gitops/pull/2">pull request #2</a>.</p>
+<figure class="shot"><img src="blog/assets/p1-27.png" alt="Argo CD demo-vks-cluster tree view, OutOfSync from HEAD 038e8a7, Healthy, auto sync not enabled" loading="lazy"></figure>
+<p><em>Argo CD sees the merge and waits: <code>demo-vks-cluster</code> is OutOfSync from <code>038e8a7</code> and stays that way, because infrastructure is on manual sync.</em></p>
+<pre><code>vcf argocd app sync demo-vks-cluster
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-28.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, seven demo-vks-cluster VMs Powered On, the new worker booting, Recent Tasks promoting its disks" loading="lazy"></figure>
+<p><em>Seven VMs: the new worker <code>…-6tx57</code> is powered on and booting while Recent Tasks promotes its disks.</em></p>
+<figure class="shot"><img src="blog/assets/p1-29.png" alt="Terminal: Cluster with 3 control-plane and 4 worker machines Ready and Available, seven Machines Running, seven nodes Ready, the new one 60 seconds old" loading="lazy"></figure>
+<p><em>The finish line: control plane 3/3, workers 4/4, seven nodes Ready, the newest one a minute old.</em></p>
+<p>The new VM booted on the first attempt. The first build was not so lucky: with five VMs provisioning at once, four stalled at boot on the lab's nested storage (Part 2, <em>When the cluster build stalls</em>). A single VM had no such problem.</p>
+<p>A cluster upgrade works the same way: change the <code>version</code> line and commit.</p>
+<h3 id="the-applications-belong-in-git-too">The Applications belong in Git too</h3>
+<p>The <code>vcf argocd app create</code> commands are convenient, but they leave the Applications themselves outside Git.</p>
+<p>The repository holds all three as YAML in <a href="https://github.com/sorinplaton/vcf-gitops/tree/blog-part1/argocd-apps"><code>argocd-apps/</code></a>, exported from the live objects. <code>kubectl diff -f argocd-apps/</code> printed nothing, so the files describe exactly what runs, and rebuilding the Argo CD side of the lab is one command:</p>
+<pre><code>kubectl -n argocd-demo-wqfbg apply -f argocd-apps/demo-vks-cluster.yaml \
+  -f argocd-apps/podinfo-vks.yaml -f argocd-apps/podinfo.yaml
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-30.png" alt="Argo CD Applications page, tiles view: demo-vks-cluster, podinfo and podinfo-vks, all Healthy and Synced" loading="lazy"></figure>
+<p><em>One pane for infrastructure and apps: <code>demo-vks-cluster</code> (the six VMs), <code>podinfo-vks</code> (the app inside them) and <code>podinfo</code> (the vSphere Pods), all Healthy and Synced.</em></p>
+<p>The repository reorganisation itself went in as a reviewed pull request, and it shows GitOps behaving as it should: Argo CD picked up the merge commit on its own and the revision it reports moved from <code>448b0d3</code> to <code>b62223d</code>, but no sync ran and no machine changed, because nothing under the watched folders had changed.</p>
+<figure class="shot"><img src="blog/assets/p1-31.png" alt="Left: GitHub pull request 1, merged. Right: terminal with vcf argocd app history demo-vks-cluster showing one entry and app get showing Synced to b62223d" loading="lazy"></figure>
+<p><em>The merged pull request on the left; on the right, <code>demo-vks-cluster</code> still has a single sync in its history (the original build from <code>7ec073f</code>) while reporting Synced to the merge commit <code>b62223d</code>.</em></p>
+<p>The usual next step is an <em>app of apps</em>: a root Application pointing at <code>argocd-apps/</code>, so that Argo CD manages its own Applications. <a href="https://github.com/sorinplaton/vcf-gitops/blob/blog-part1/argocd-apps/root.yaml"><code>argocd-apps/root.yaml</code></a> is in the repository but not applied.</p>
+<figure class="diagram"><img src="blog/assets/diagram-app-of-apps.png" alt="app of apps · applied by hand today, root Application blocked on its own namespace" loading="lazy"><figcaption>app of apps · applied by hand today, root Application blocked on its own namespace</figcaption></figure>
+<p>Applications live in the instance's hosting namespace, and this instance runs with <code>cluster.inClusterEnabled=false</code>, so that namespace is not a registered target; making it one would give the instance write access to its own namespace, which is a design decision rather than a lab fix.</p>
+<p>Until then the Applications are versioned and reviewed in Git and applied with kubectl. If a root Application is ever applied, keep it on manual sync with prune off: pruning an Application deletes everything it built (Part 2).</p>
+<h2 id="the-shortcut-git-straight-into-a-namespace-no-cluster">The shortcut: Git straight into a namespace, no cluster</h2>
+<p>Everything above used target 2 to put podinfo inside a VKS cluster. Target 1 can run it on its own.</p>
+<p>The same Argo CD instance carries a second application, <code>podinfo</code>, that installs the upstream podinfo Helm chart straight into the Supervisor namespace <code>podinfo-demo-vkjhr</code>.</p>
+<p>There is no cluster to build: each pod becomes a vSphere Pod, a small VM that the ESXi host runs directly, which is why the PodVM inventory in step 3 shows <code>podinfo-*</code> entries next to the cluster's node VMs.</p>
+<blockquote>
+<p><strong>What decides how a pod is built.</strong> Argo CD has no default: every Application names a destination, and the API behind it does the building.</p>
+<ul>
+<li><strong>Destination is the Supervisor namespace (target 1):</strong> a Deployment's pods become vSphere Pods on ESXi, a <code>Cluster</code> object becomes VKS node VMs, a <code>VirtualMachine</code> becomes a VM Service VM.</li>
+<li><strong>Destination is the VKS cluster (target 2):</strong> pods are ordinary pods on the cluster's worker nodes.</li>
+</ul>
+<p>Rule of thumb: a cluster when the app needs one (CRDs, operators, DaemonSets, cluster-wide rights), the namespace when it only needs to run.</p>
+<p>vSphere Pods need an NSX-backed Supervisor, as in this lab.</p>
+</blockquote>
+<pre><code>vcf argocd app create podinfo \
+  --repo https://stefanprodan.github.io/podinfo --helm-chart podinfo --revision '6.*' \
+  --dest-server 'https://kubernetes.default.svc/?context=podinfo-demo-vkjhr' \
+  --dest-namespace podinfo-demo-vkjhr \
+  --sync-policy automated --auto-prune
+vcf argocd app list      # argocd-demo-wqfbg/podinfo   Synced  Healthy  Auto-Prune
+</code></pre>
+<figure class="shot"><img src="blog/assets/p1-32.png" alt="vSphere Client, namespace podinfo-demo-vkjhr, Compute tab, Core Kubernetes Pods: three podinfo pods Running, vSphere Pod Yes" loading="lazy"></figure>
+<p><em>vSphere Client, Supervisor Management &gt; Namespaces &gt; <code>podinfo-demo-vkjhr</code> &gt; Compute &gt; Core Kubernetes &gt; Pods: the three <code>podinfo-69547cd6b7-*</code> pods, Running, with the vSphere Pod column reading Yes. All three run on <code>esx-05a</code> itself, not on a node VM.</em></p>
+<figure class="shot"><img src="blog/assets/p1-33.png" alt="Argo CD application podinfo, tree view: Service, Deployment, ReplicaSet and three Pods from the podinfo Helm chart 6.15.0, Healthy and Synced" loading="lazy"></figure>
+<p><em>S16b. The same three pods from Argo CD's side: application <code>podinfo</code>, Helm chart <code>6.*</code> resolved to 6.15.0, Healthy and Synced.</em></p>
+<p>Which target to use for an app:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th></th>
+<th>vSphere Pods (target 1)</th>
+<th>Inside a VKS cluster (target 2)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What gets built</td>
+<td>One small VM per pod, nothing else</td>
+<td>Six node VMs first, then pods inside them</td>
+</tr>
+<tr>
+<td>Time to first pod</td>
+<td>Seconds</td>
+<td>The cluster build first</td>
+</tr>
+<tr>
+<td>Kubernetes you get</td>
+<td>The Supervisor's API, scoped to one namespace</td>
+<td>Your own cluster, with cluster-admin through the registered target</td>
+</tr>
+<tr>
+<td>Good for</td>
+<td>Single services and agents that should sit next to VMs</td>
+<td>Anything that needs cluster-scoped objects: CRDs, operators, DaemonSets, most Helm charts</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="try-this-next">Try this next</h2>
+<p>Three things you can do in the same lab tomorrow, each a single commit:</p>
+<ul>
+<li><strong>Upgrade the cluster.</strong> Change <code>version:</code> in <code>cluster.yaml</code> to a newer release that <code>kubectl get kr</code> lists and your cluster class supports, sync <code>demo-vks-cluster</code>, and watch the Supervisor roll the control-plane and worker VMs one at a time.</li>
+<li><strong>Put a VM in the same repository.</strong> Add a VM Service <code>VirtualMachine</code> object under <code>vms/</code> with the Supervisor namespace as its destination; Git now owns a VM and a container app side by side.</li>
+<li><strong>Turn <code>apps/</code> into an ApplicationSet.</strong> Enable the ApplicationSet controller on the instance, use the Git directory generator over <code>apps/*</code>, and every new folder becomes a deployed app without an <code>argocd app create</code>.</li>
+</ul>
+<p>Then read Part 2, which is where the platform team's questions live: who may change what once nobody runs kubectl apply, what one Argo CD per team actually protects, what to change before production, and everything that stopped this lab the first time, from the VLAN nobody was listening on to node VMs that would not boot. <a href="#part-2-who-controls-what-and-what-breaks">Part 2: who controls what, and what breaks</a></p>
+<h2 id="vocabulary">Vocabulary</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning in this post</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Supervisor</strong></td>
+<td>The Kubernetes control plane vSphere runs on a cluster once Workload Management is enabled. Every other object here is created through it.</td>
+</tr>
+<tr>
+<td><strong>vSphere Namespace</strong></td>
+<td>A tenant boundary on the Supervisor: resource limits, permissions, VM classes, storage policies and, with VPC networking, its own VPC.</td>
+</tr>
+<tr>
+<td><strong>VKS cluster</strong></td>
+<td>A Kubernetes cluster made of VMs (control-plane and worker nodes) that the Supervisor creates and lifecycles from a <code>Cluster</code> object.</td>
+</tr>
+<tr>
+<td><strong>Supervisor Service</strong></td>
+<td>An add-on enabled once per Supervisor from the vSphere Client. The Argo CD Operator, Harbor and Contour ship this way.</td>
+</tr>
+<tr>
+<td><strong>Operator</strong></td>
+<td>A controller that owns the lifecycle of one product: it watches for its object type (<code>ArgoCD</code>) and builds, upgrades and repairs the instance behind it.</td>
+</tr>
+<tr>
+<td><strong>Argo CD instance</strong></td>
+<td>One running Argo CD: API server, repo server, application controller and Redis, deployed as PodVMs in a hosting namespace, with a UI on a load-balancer VIP.</td>
+</tr>
+<tr>
+<td><strong>PackageInstall (kapp)</strong></td>
+<td>The Carvel object the Operator renders to install the instance; it reconciles every 10 minutes and owns the Kubernetes objects.</td>
+</tr>
+<tr>
+<td><strong>PodVM</strong></td>
+<td>How a pod runs on a Supervisor: as a small VM. A pod that cannot be built (missing secret) fails terminally as <code>ProviderFailed</code>.</td>
+</tr>
+<tr>
+<td><strong>Application</strong></td>
+<td>Argo CD's unit of deployment: one Git folder, one target, one sync policy.</td>
+</tr>
+<tr>
+<td><strong>AppProject</strong></td>
+<td>The fence around Applications: allowed repositories, destinations, resource kinds, sync windows.</td>
+</tr>
+<tr>
+<td><strong>Target / cluster secret</strong></td>
+<td>A registered destination: an API endpoint plus the credential Argo CD holds there, created by <code>argocd cluster add</code>.</td>
+</tr>
+<tr>
+<td><strong>Sync, drift, self-heal, prune</strong></td>
+<td>Sync applies Git to the target; drift is any difference between the two; self-heal reverts drift automatically; prune deletes what Git no longer contains.</td>
+</tr>
+<tr>
+<td><strong>Sync wave</strong></td>
+<td>An annotation that orders resources within one sync, so a cluster lands before its add-ons.</td>
+</tr>
+<tr>
+<td><strong>VPC</strong></td>
+<td>NSX Virtual Private Cloud: the isolated network domain behind a vSphere Namespace, with its own subnets, SNAT and optional load balancer.</td>
+</tr>
+<tr>
+<td><strong>Transit gateway (TGW)</strong></td>
+<td>The per-project NSX gateway that connects VPCs to the outside; here it performs SNAT on the VNA cluster.</td>
+</tr>
+<tr>
+<td><strong>Distributed VLAN Connection (DVC)</strong></td>
+<td>External connectivity for a transit gateway through a plain VLAN, with no Tier-0 or edge: a VLAN ID, an external gateway address and an IP block on that VLAN.</td>
+</tr>
+<tr>
+<td><strong>VNA</strong></td>
+<td>The NSX appliance cluster that provides stateful services (SNAT, LB) for VPCs on a Distributed VLAN Connection.</td>
+</tr>
+<tr>
+<td><strong>NCP</strong></td>
+<td>The NSX Container Plug-in on the Supervisor that realises Services and namespaces in NSX.</td>
+</tr>
+<tr>
+<td><strong>Holodeck</strong></td>
+<td>Broadcom's nested VCF lab: a whole fleet on one ESXi host, with the holorouter as its gateway and DNS.</td>
+</tr>
+<tr>
+<td>Kubernetes release (kr)</td>
+<td>A Supervisor object naming a Kubernetes version and the node OS image that implements it. Releases appear only once a content library is set as the Supervisor's Kubernetes Service library.</td>
+</tr>
+<tr>
+<td>ClusterClass</td>
+<td>The template a Cluster object is built from. Each version supports a range of Kubernetes releases, so the class and the release must be chosen together.</td>
+</tr>
+<tr>
+<td>MachineHealthCheck</td>
+<td>Cluster API's watchdog. It deletes and recreates a node VM that has not joined the cluster within a timeout (one hour in this lab).</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="screenshot-checklist">Screenshot checklist</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>What is in frame</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S9</td>
+<td>Six cluster VMs Powered On (hero), with S9a and S9b during the build</td>
+<td>The moment, step 4</td>
+</tr>
+<tr>
+<td>S1</td>
+<td>Services page, Argo CD 1.2.0 installed</td>
+<td>Step 1</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>Namespaces list</td>
+<td>Step 2</td>
+</tr>
+<tr>
+<td>S3, S3b</td>
+<td>VCF Automation Enable load balancing switch (S29); NSX org VPC load balancer; its <code>nsxLoadBalancerPath</code></td>
+<td>Step 2</td>
+</tr>
+<tr>
+<td>S4, S5</td>
+<td>ArgoCD object Ready and pods; <code>argocd-server</code> VIP</td>
+<td>Step 3</td>
+</tr>
+<tr>
+<td>PodVM inventory</td>
+<td>Hosting, Operator, auto-attach and podinfo PodVMs</td>
+<td>Step 3</td>
+</tr>
+<tr>
+<td>S7</td>
+<td>Supervisor namespace registered as a target</td>
+<td>Step 4</td>
+</tr>
+<tr>
+<td>S22, S23, S23b</td>
+<td>Kubernetes Service library; namespace memory and storage limits</td>
+<td>Step 4 prerequisites</td>
+</tr>
+<tr>
+<td>S8, S10, S25</td>
+<td>Cluster app Progressing; <code>app wait</code> with 3 + 3 machines; vCenter's cluster view</td>
+<td>Step 4</td>
+</tr>
+<tr>
+<td>S11</td>
+<td>Settings &gt; Clusters, two targets</td>
+<td>Step 5</td>
+</tr>
+<tr>
+<td>S12, S13</td>
+<td><code>podinfo-vks</code> Network view with node popover; podinfo page</td>
+<td>Step 5</td>
+</tr>
+<tr>
+<td>S14, S15, S26</td>
+<td>Commit beside three pods; self-heal watch; self-heal animation</td>
+<td>Step 6</td>
+</tr>
+<tr>
+<td>S19, S21</td>
+<td>All three apps; pull request with no sync</td>
+<td>Step 6</td>
+</tr>
+<tr>
+<td>S20</td>
+<td>Repository at tag <code>blog-part1</code></td>
+<td>The repository</td>
+</tr>
+<tr>
+<td>S16a, S16b</td>
+<td>vSphere Pods in vCenter and in Argo CD</td>
+<td>The shortcut</td>
+</tr>
+</tbody>
+</table></div>
+<p>Also in step 6: S17a to S17c, the seventh VM. Every capture comes from the lab run.</p>
+<h3 id="sources">Sources</h3>
+<ul>
+<li><em>The VLAN Nobody Was Listening On</em>, the lab post-mortem behind this walkthrough: every dead end the Holodeck lab hit first, so yours does not have to (Argo CD Service 1.2.0, Argo CD 3.4.4, VCF 9.1.0 Holodeck)</li>
+<li><em>Argo CD for VKS: vCenter vs VCF Automation</em>, the companion explainer, for the two delivery paths and how they scale across regions</li>
+<li><a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-service-administration-and-development/9-0/using-supervisor-services/using-argo-cd-service/install-argo-cd-service.html">Install the VMware Argo CD Operator as a Supervisor Service</a>, Broadcom TechDocs</li>
+<li><a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vsphere-supervisor-services-and-standalone-components/latest/using-supervisor-services/using-argo-cd-service/manage-resources-in-vsphere-namespaces-with-argo-cd.html">Manage Resources in vSphere Namespaces with Argo CD</a> and <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vsphere-supervisor-services-and-standalone-components/latest/using-supervisor-services/using-argo-cd-service/using-argocd-to-manage-resources-on-the-supervisor.html">Manage Resources in VKS Clusters by Using Argo CD</a>, Broadcom TechDocs</li>
+<li><a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-consumption/latest/argo-cd/deploy-a-vks-custer-by-using-argo-cd.html">Deploy a VKS Cluster and Configure VKS Add-ons by Using Argo CD</a> and <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-consumption/latest/argo-cd/deploy-an-example-guestbook-application-on-a-vks-cluster-with-argo-cd.html">Deploy an Example Guestbook Application on a VKS Cluster with Argo CD</a>, Broadcom TechDocs</li>
+<li>VMware Cloud Foundation 9.1 documentation bundle (PDF): VCF Automation 9.1.1.0 release notes (p. 632), 9.1.1 bill of materials (p. 565), <em>VCF Edge: Single Node with Argo CD Design Blueprint</em>, authentication and sizing design (pp. 1371–1373), VCF Download Tool artifacts commands (pp. 3978–3980)</li>
+<li><a href="https://argo-cd.readthedocs.io/en/stable/operator-manual/rbac/">Argo CD RBAC configuration</a> and <a href="https://argo-cd.readthedocs.io/en/stable/user-guide/projects/">Projects</a>, upstream Argo CD documentation</li>
+<li><a href="https://github.com/sorinplaton/holodeck-automation">holodeck-automation</a> README, for the jump host's route and DNS requirements</li>
+<li><a href="https://github.com/vmware/vsphere-supervisor/blob/main/airgapped/air-gapped-vcf91.md">Air-gapped VCF 9.1 guide</a>, vmware/vsphere-supervisor on GitHub, for the VCF CLI install commands, the Supervisor Service YAML variants and the <code>argocd-service</code> bundle reference</li>
+<li><a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/building-your-cloud-applications/getting-started-with-the-tools-for-building-applications/installing-and-using-vcf-cli-v9/command-reference2/system-commands(1)/context2.html">VCF CLI context command reference</a> and <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/vsphere-supervisor-installation-and-configuration/connecting-to-vsphere-with-tanzu-clusters/connect-to-a-tkg-service-cluster-as-a-vcenter-single-sign-on-user-with-kubectl.html">Connect to a VKS Cluster with VCF CLI</a>, Broadcom TechDocs</li>
+<li><a href="https://williamlam.com/2025/12/quick-tip-using-vcf-cli-to-login-to-vsphere-supervisor-when-configured-with-vcf-automation.html">Using VCF CLI to login to vSphere Supervisor when configured with VCF Automation</a>, William Lam</li>
+<li><a href="https://github.com/sorinplaton/vcf-gitops/tree/blog-part1">sorinplaton/vcf-gitops at tag blog-part1</a>, the repository every file and commit in this post comes from</li>
+</ul>
+<hr class="part">
+<h1 id="part-2-who-controls-what-and-what-breaks">Part 2: who controls what, and what breaks</h1>
+<p>Part 1 built a VKS cluster and an app from one Git repository. This part is for the reader who now asks the two questions every platform team asks next: if nobody runs <code>kubectl apply</code> any more, who is allowed to change what, and what happens on the day it does not work.</p>
+<h2 id="who-controls-what">Who controls what</h2>
+<p>GitOps does not remove access control; it moves it. Once nobody runs <code>kubectl apply</code>, the questions become: who can change the desired state, what is Argo CD allowed to do with it, and what can the engine physically reach. Four layers answer those, and each is owned by a different person.</p>
+<figure class="diagram"><img src="blog/assets/diagram-control-layers.png" alt="control layers · Git, Argo CD, target credentials, vSphere" loading="lazy"><figcaption>control layers · Git, Argo CD, target credentials, vSphere</figcaption></figure>
+<h3 id="layer-1-git-decides-what-may-become-desired-state">Layer 1: Git decides what may become desired state</h3>
+<p>This is the CI control most teams already have. Protect <code>main</code> so nothing lands unreviewed, require a pull-request review, and use <code>CODEOWNERS</code> so the folder <code>clusters/</code> needs a platform reviewer while <code>apps/podinfo/</code> needs the app team. Give Argo CD a <strong>read-only</strong> token when you run <code>argocd repo add</code>: it only ever pulls, so it should never be able to push. With that in place a bad change needs a reviewer to miss it, and the audit trail is the commit history.</p>
+<h3 id="layer-2-the-argo-cd-instance-decides-who-may-act-and-inside-which-fence">Layer 2: the Argo CD instance decides who may act, and inside which fence</h3>
+<p>Controls here are per instance, so every team that gets its own <code>ArgoCD</code> object gets its own copy of them. Three objects matter. The <strong>RBAC policy</strong> maps users or SSO groups to roles and roles to verbs; anyone logged in is read-only until a policy says otherwise. The <strong>AppProject</strong> is the fence an Application must fit inside: which repositories may be a source, which cluster-plus-namespace pairs may be a destination, which resource kinds may be created, and when syncs may run. The <strong>Application's sync policy</strong> is the per-app dial: manual sync means a human presses the button after review; automated means Git is applied as soon as it changes; <code>selfHeal</code> reverts manual drift; <code>prune</code> deletes objects removed from Git.</p>
+<p>The recommended layout is two Projects per instance, <code>infra</code> (Supervisor as the only destination, <code>cluster.x-k8s.io</code> and <code>addons.kubernetes.vmware.com</code> kinds allowed) and <code>apps</code> (VKS cluster endpoints only, no cluster-scoped kinds). An app team whose Applications live in <code>apps</code> cannot point one at the Supervisor even if their RBAC role lets them create Applications, because the Project refuses the destination. The full <code>policy.csv</code> and <code>AppProject</code> YAML are in Appendix B.</p>
+<h3 id="layer-3-the-credentials-argo-cd-holds-on-each-target">Layer 3: the credentials Argo CD holds on each target</h3>
+<p>Whatever the RBAC policy and Projects say, the engine can only do what its service account on the target allows. <code>argocd cluster add</code> creates those credentials and stores them as cluster secrets in the hosting namespace, and the two targets give very different rights:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Service account</th>
+<th>Rights</th>
+<th>Consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Supervisor namespace</td>
+<td>Credentials bound by a RoleBinding to each namespace you listed</td>
+<td>Namespace-scoped</td>
+<td>The instance can only create Supervisor objects in namespaces you named; other tenants' namespaces are unreachable even to <code>admin</code></td>
+</tr>
+<tr>
+<td>VKS cluster</td>
+<td><code>argocd-manager</code> in <code>kube-system</code></td>
+<td><code>cluster-admin</code></td>
+<td>Anything Argo CD applies inside that cluster is unrestricted; the fence is the AppProject, so do not skip it</td>
+</tr>
+</tbody>
+</table></div>
+<p>This is why <strong>one Argo CD per team is a real security boundary on VCF</strong>, not just tidiness: a team's instance holds credentials only for its own namespaces and clusters. The Operator makes instances cheap, so use that.</p>
+<h3 id="auto-attach-on-911-registering-target-2-without-the-cli">Auto-attach on 9.1.1: registering target 2 without the CLI</h3>
+<p>Part 1 registers the VKS cluster by hand with <code>vcf argocd cluster add</code>. From 9.1.1 the Supervisor Service also ships a VKSM auto-attach component that can attach new VKS clusters to an Argo CD instance on its own, creating the Layer 3 credentials above without anyone running the CLI. It does not add a new kind of target; it automates registering target 2.</p>
+<p>It acts on policy, and no policy exists by default. In this lab the auto-attach pod was running in <code>svc-auto-attach-5gei8</code>, yet:</p>
+<pre><code>kubectl get entitymanagementpolicies -A
+# No resources found
+</code></pre>
+<p>An hour and 46 minutes after the cluster finished syncing, <code>vcf argocd cluster list</code> still had a single row, the vSphere Namespace. The policy format itself was not tested here.</p>
+<p>Two practical points follow. First, check before relying on it: if that command is empty, register the cluster by hand as in Part 1. Second, once a policy does exist, treat it like any other Layer 3 control: it decides which clusters an Argo CD instance can reach, so it belongs in the same review as the <code>argocd-manager</code> service accounts it would otherwise replace.</p>
+<h3 id="layer-4-vsphere-decides-who-may-reach-the-platform-at-all">Layer 4: vSphere decides who may reach the platform at all</h3>
+<p>Underneath everything sits vSphere SSO and namespace permissions. Creating the <code>ArgoCD</code> object needs <em>edit</em> on the hosting namespace; creating a VKS cluster through target 1 needs the instance's service account, which the namespace owner granted with <code>cluster add</code>; and what that cluster may be is bounded by the VM classes, storage policies and quotas the vSphere admin attached to the namespace. Humans reach a VKS cluster with <code>vcf context create</code>, which maps their vSphere role on the namespace to a role inside the cluster, and the cluster itself enforces the restricted Pod Security Admission profile, which is why podinfo carries a security context.</p>
+<h3 id="so-who-controls-a-vks-cluster">So who controls a VKS cluster?</h3>
+<p>Three parties, in order of precedence:</p>
+<ol>
+<li><strong>The vSphere admin</strong> owns the namespace the cluster lives in. They decide which VM classes and storage it may use, who has <em>edit</em> on the namespace, and whether an Argo CD instance is allowed in through <code>cluster add</code>. Delete the namespace and the cluster goes with it.</li>
+<li><strong>The platform team, through Git and the <code>infra</code> Project.</strong> The cluster's shape (versions, node counts, add-ons) is the <code>Cluster</code> object in Git; changing it means a reviewed commit and a sync by someone whose Argo CD role allows syncing <code>infra/*</code>.</li>
+<li><strong>The app team, through Git and the <code>apps</code> Project.</strong> They control what runs inside the cluster and nothing about the cluster itself: their Project's destination is the VKS API endpoint, their RBAC role reaches <code>apps/*</code> only, and even Argo CD's cluster-admin credential can only be used through Applications that fit that Project.</li>
+</ol>
+<p>The day-2 operations then fall out naturally. Upgrading a cluster is a commit to <code>version</code> by the platform team; scaling a node pool is a commit to <code>replicas</code>; adding a team is a new Project, a new Git folder with its <code>CODEOWNERS</code> line, and a <code>g</code> line in the RBAC policy.</p>
+<h3 id="deleting-an-application-deletes-what-it-built">Deleting an Application deletes what it built</h3>
+<p>The same loop that turns a commit into six VMs turns a delete into zero. Deleting an Application from the Argo CD UI, or with <code>argocd app delete</code>, is a cascading delete by default: every resource the Application manages is deleted with it. For <code>demo-vks-cluster</code> that resource is the Cluster object, and the Supervisor answers by deleting the three control-plane VMs, the three worker VMs, their disks, and everything running inside the cluster, including the workloads of <code>podinfo-vks</code>. The VKS target in Argo CD is left pointing at an API that no longer exists.</p>
+<p>Two other paths lead to the same result:</p>
+<ul>
+<li><strong>Prune.</strong> With prune enabled on the Application, removing or renaming <code>clusters/demo-vks-cluster/cluster.yaml</code> in Git deletes the cluster on the next sync. This is one reason <code>demo-vks-cluster</code> runs with manual sync and no prune.</li>
+<li><strong>kubectl on the Application.</strong> When the Application carries the <code>resources-finalizer.argocd.argoproj.io</code> finalizer, <code>kubectl delete application</code> cascades exactly like the UI. Without the finalizer, the resources stay.</li>
+</ul>
+<p>The safeguards, from the one that protects the most to the one that protects the least:</p>
+<ol>
+<li><strong>Mark the Cluster object as never deleted or pruned by Argo CD.</strong> <code>Delete=false</code> keeps it when the Application is deleted; <code>Prune=false</code> keeps it when it disappears from Git, and the Application shows OutOfSync instead. The cluster in Part 1 does not carry this annotation; a production repository should. The snippet is in the repository as examples/protect-cluster.yaml.</li>
+</ol>
+<pre><code>metadata:
+  name: demo-vks-cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+</code></pre>
+<ol>
+<li><strong>Delete without cascading when removing an Application on purpose.</strong> <code>argocd app delete demo-vks-cluster --cascade=false</code> removes only Argo CD's tracking; the cluster and its VMs keep running.</li>
+<li><strong>Take the delete verb away.</strong> In the RBAC policy, grant <code>applications, delete</code> on <code>infra/*</code> to a break-glass role only, not to the everyday platform role. The <code>p, role:platform, applications, *, */*, allow</code> line in Appendix B is too broad for production for exactly this reason.</li>
+<li><strong>Sync windows help with prune, not with deletes.</strong> A deny window on the <code>infra</code> Project stops syncs, and therefore pruning, outside change hours, but it does not stop someone deleting the Application.</li>
+</ol>
+<p>Nothing on the vSphere side undoes the deletion: the VMs are removed through the Supervisor like any other Cluster API teardown. Recovery means syncing the Application again and waiting for a new build, with new VMs and an empty cluster.</p>
+<h2 id="recommendations-for-production">Recommendations for production</h2>
+<p>The lab cut corners on purpose. Before this pattern carries anything that matters:</p>
+<ul>
+<li><strong>HA the instance.</strong> Set <code>server</code>, <code>repo</code> and <code>controller</code> replicas above one in the <code>ArgoCD</code> spec; the Operator handles the rest. Raise the default resource limits (controller 2 CPU / 2 GB, repo server 1 CPU / 0.5 GB) once you have more than a handful of apps; Broadcom calls the defaults proof-of-concept values.</li>
+<li><strong>OIDC, not the local admin.</strong> Point the instance at your identity provider and map groups in the RBAC policy; rotate the initial admin password out of existence.</li>
+<li><strong>Manual sync on <code>infra</code>, automated on <code>apps</code>.</strong> A change to node counts or Kubernetes version should wait for a person to press <em>Sync</em>; an app rollout should not.</li>
+<li><strong>Enable the ApplicationSet controller on day one.</strong> It ships with the Operator but is off by default; you will want it the moment you have a second cluster.</li>
+<li><strong>Regional Harbor.</strong> Mirror the podinfo image and every add-on package into Harbor so a cluster build never depends on internet reachability from the workers.</li>
+<li><strong>Own the DVC gateway before enabling the service.</strong> In production the gateway address of a Distributed VLAN Connection belongs to the network team; confirm it answers ping and ARP, and that DNS answers UDP from the new VLAN, before the first image pull.</li>
+<li><strong>Protect infrastructure from deletion.</strong> Annotate every Cluster object with <code>argocd.argoproj.io/sync-options: Delete=false,Prune=false</code>, and keep the delete verb on <code>infra/*</code> for a break-glass role, as described above.</li>
+</ul>
+<h2 id="under-the-hood-how-the-tenant-vpc-reaches-the-outside">Under the hood: how the tenant VPC reaches the outside</h2>
+<p>Part 1 kept the lab to one drawing. This one zooms into the Supervisor's networking: how a pod in the <code>holo-east</code> project gets out through the transit gateway and VLAN 200, side by side with the system namespaces on VLAN 24. It is the background to most of what follows in When it breaks.</p>
+<figure class="diagram"><img src="blog/assets/diagram-lab-network.png" alt="lab network · holo-east and default projects, VLAN 200 and VLAN 24, holorouter, VyOS" loading="lazy"><figcaption>lab network · holo-east and default projects, VLAN 200 and VLAN 24, holorouter, VyOS</figcaption></figure>
+<p>The tenant <code>holo-east</code> was created as a VCF Automation organization. That gives it its own NSX project, a transit gateway, a private IP block and two VPCs, one per vSphere Namespace. Its external connectivity is a <strong>Distributed VLAN Connection</strong> (DVC) rather than an edge-backed Tier-0: the transit gateway SNATs outbound traffic on the VNA cluster to an address from the external block and hands the frame to whatever answers ARP for the DVC's gateway address on VLAN 200. Inbound needs no routing at all, because the physical side sees the external block as directly connected. No BGP, no static routes on the NSX side, no edge.</p>
+<p>The Supervisor's own system namespaces use exactly the same pattern in the NSX <em>default</em> project on VLAN 24, and had been pulling images for days. That made them the perfect control group: the only difference between working and broken was who sat at the far end of the VLAN.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Where configured</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VPC vpc-argocd-demo</td>
+<td>Created by VCF Automation for the org namespace, in NSX project holo-east</td>
+<td>pods 172.31.0.0/27 (from the private TGW block), private 10.24.24.0/24</td>
+</tr>
+<tr>
+<td>Transit gateway SNAT</td>
+<td>NSX, realised automatically by the connectivity profile</td>
+<td>outbound source 10.200.200.3</td>
+</tr>
+<tr>
+<td>DVC d-vlan-1</td>
+<td>NSX, created by VCF Automation regional networking</td>
+<td>vlan_id 200, gateway_addresses 10.200.200.1/24, block 10.200.200.0/24</td>
+</tr>
+<tr>
+<td>Default-project DVC</td>
+<td>NSX, created at Supervisor enablement</td>
+<td>VLAN 24, gateway 10.1.8.129/25, block 10.1.8.128/25; SNAT 10.1.8.130</td>
+</tr>
+<tr>
+<td>VPC load balancer</td>
+<td>NSX UI, on each org VPC, size Small; added by hand</td>
+<td>published to the Supervisor as nsxLoadBalancerPath; Argo CD VIP 10.200.200.5</td>
+</tr>
+<tr>
+<td>Holorouter eth1.24</td>
+<td>Already present in Holodeck</td>
+<td>10.1.8.129/25, VLAN 24</td>
+</tr>
+<tr>
+<td>Holorouter eth1.200</td>
+<td>Added as a sub-interface, persisted by a oneshot systemd unit</td>
+<td>10.200.200.1/24, VLAN 200, MTU 8000</td>
+</tr>
+<tr>
+<td>Holorouter DNS</td>
+<td>Technitium, unchanged</td>
+<td>answers on 10.1.1.1 (VLAN 10); UDP only from locally attached VLANs</td>
+</tr>
+<tr>
+<td>Holorouter DNAT for VLAN 200</td>
+<td>Added for the VKS nodes (Part 1, step 5)</td>
+<td>UDP 53 to 10.1.1.1 from VLAN 200 redirected to 10.200.200.1:53</td>
+</tr>
+<tr>
+<td>VyOS eth1 vif 200</td>
+<td>Removed; it briefly owned 10.200.200.1 on day 2</td>
+<td>replaced by static route 10.200.200.0/24 next-hop 10.0.6.33 so upstream routing still reaches the block</td>
+</tr>
+</tbody>
+</table></div>
+<p>Why the gateway ended up on the holorouter and not on the VyOS is the story of the post-mortem, summarised just below. The short form: putting VLAN 200 next to VLAN 24 on the router that already hosts the DNS made the new VPC a local client of that DNS, which is the only kind of client it answers over UDP. The VKS nodes were a later surprise: they are configured with <code>10.1.1.1</code> as their resolver and still got no UDP answer from that address, while the holorouter's VLAN 200 address, <code>10.200.200.1</code>, answered them. Hence the extra DNAT rule.</p>
+<h2 id="when-it-breaks">When it breaks</h2>
+<p>The first attempt at step 3 in this lab produced no running pods at all. The full investigation is in the companion post-mortem, <em>The VLAN Nobody Was Listening On</em>; the short version is three root causes and the debris they leave behind.</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Root cause</th>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Nobody on VLAN 200.</strong> VCF Automation created the DVC with gateway <code>10.200.200.1</code>, but no router owned that address</td>
+<td>Every <code>Image</code> object stuck in <em>Resolving</em> then <em>Failed</em>; the fetcher reported <code>lookup projects.packages.broadcom.com: i/o timeout</code></td>
+<td>Sub-interface <code>eth1.200</code> with <code>10.200.200.1/24</code> on the holorouter, next to VLAN 24</td>
+</tr>
+<tr>
+<td><strong>DNS answered TCP but not UDP from outside.</strong> The lab DNS replied only to clients on its own or a locally attached VLAN; a gateway on the VyOS made the VPC an outside client</td>
+<td>Same timeout after the gateway existed; <code>dig +tcp</code> worked, plain <code>dig</code> did not</td>
+<td>Same fix: with VLAN 200 on the holorouter the VPC is a local client</td>
+</tr>
+<tr>
+<td><strong>Pre-created VPCs have no load balancer.</strong> The NSX operator only creates VPC LBs for VPCs it creates itself</td>
+<td><code>argocd-server</code> EXTERNAL-IP <code>&lt;pending&gt;</code>; NCP logging <code>NCP00270 Lbs &lt;ns&gt; is not found</code> under a generic <em>Generic error occurred during realizing network for Service</em></td>
+<td>Create the LB on each org VPC in the NSX UI, wait one operator sync</td>
+</tr>
+</tbody>
+</table></div>
+<p>Two things stay broken after the network is fixed:</p>
+<ul>
+<li>The one-shot Job <code>argocd-redis-secret-init</code> burned its retries during the outage, and kapp will not recreate a failed Job that already exists. Every new pod then dies with <code>secret "argocd-redis" not found</code>. Delete the Job; the next <code>PackageInstall</code> reconcile (10 minutes) brings it back.</li>
+<li>Because Supervisor pods are VMs, a pod with a missing secret goes to the terminal <code>ProviderFailed</code> phase and the ReplicaSet replaces it every 15 seconds. Three hours produced 264 corpses. <code>kubectl delete pods -n &lt;ns&gt; --field-selector status.phase=Failed</code> cleans up.</li>
+</ul>
+<pre><code>kubectl delete job argocd-redis-secret-init -n argocd-demo-wqfbg
+kubectl delete pods -n argocd-demo-wqfbg --field-selector status.phase=Failed
+</code></pre>
+<p>The lesson that generalises beyond Holodeck: a Distributed VLAN Connection's gateway address is a promise you make to NSX. Confirm it with ping and ARP, and test DNS over UDP from the new VLAN, before blaming the Operator.</p>
+<h3 id="when-the-cluster-build-stalls">When the cluster build stalls</h3>
+<p>Part 1 quotes the clean stage timings. The wall clock in this lab was 11 hours 43 minutes from sync to a ready 3 + 3 cluster, and none of that time was Git's or Argo CD's: the application was Synced within seconds and stayed that way while the Supervisor fought the problems below. Argo CD does not help much here, because the app holds one Cluster object and reports Progressing until it is done. Watch the Supervisor instead:</p>
+<pre><code>kubectl -n podinfo-demo-vkjhr get cluster,machines -o wide
+kubectl -n podinfo-demo-vkjhr get vm -o wide
+kubectl -n podinfo-demo-vkjhr get events --sort-by=.lastTimestamp | tail -20
+</code></pre>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>What it was</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kubectl get kr</code> says <code>No resources found</code>, so no release can be referenced</td>
+<td>A content library was attached to the Supervisor, but none was set as the Kubernetes Service library</td>
+<td>Set the subscribed library as the Kubernetes Service content library (Part 1, step 4); releases appear within a minute</td>
+</tr>
+<tr>
+<td>VMs Powered On with no IP; Machine condition <code>WaitingForNetworkAddress</code>; VM condition <code>VMware Tools is not running</code>; the console shows <code>Failed to mount /sysroot</code> and <code>Entering emergency mode</code></td>
+<td>Four of the first five node VMs stopped at boot. No root cause was established. The disk promotion log of a stuck VM showed transfer rates falling to 0 kB/s, against 85 MB/s for the VM that booted, which points at nested storage under parallel load</td>
+<td>Nothing was changed. The cluster's MachineHealthCheck replaced each stuck machine after its one-hour startup timeout, and replacements eventually booted. The last two VMs, created one at a time, booted on the first try. vCenter refuses a manual reset of these VMs, even for administrator@vsphere.local, so let Cluster API do it</td>
+</tr>
+<tr>
+<td><code>vcf argocd app wait</code> times out after 3600 s with the app Synced / Progressing</td>
+<td>The build was still running, for the reason above</td>
+<td>Raise <code>--timeout</code>, or stop waiting on Argo CD and watch the Machines</td>
+</tr>
+<tr>
+<td>A VM is never created; the VSphereMachine says <code>insufficient storage quota for storage policy</code></td>
+<td>Six 20 GiB node disks do not fit the <code>small</code> namespace class's 100000Mi</td>
+<td>Raise the namespace's storage limit (and memory, for 18 GiB of node VMs) in VCF Automation; the VM is created within seconds of the change</td>
+</tr>
+<tr>
+<td>Pods in <code>ImagePullBackOff</code>: <code>lookup ghcr.io on 127.0.0.53:53 ... i/o timeout</code></td>
+<td>The nodes' resolver, 10.1.1.1, did not answer UDP from VLAN 200</td>
+<td>DNAT on the holorouter from 10.1.1.1:53 to 10.200.200.1:53 for VLAN 200 (Part 1, step 5)</td>
+</tr>
+<tr>
+<td>The VKS cluster never appears in Settings &gt; Clusters</td>
+<td>Auto-attach is running but has no EntityManagementPolicy to act on</td>
+<td><code>vcf argocd cluster add demo-vks-cluster</code>, or define the policy</td>
+</tr>
+<tr>
+<td><code>error: You must be logged in to the server (Unauthorized)</code> a few hours in</td>
+<td>The <code>kubectl vsphere login</code> token expired</td>
+<td>Log in again; long builds outlive a session</td>
+</tr>
+</tbody>
+</table></div>
+<figure class="shot"><img src="blog/assets/p2-34.png" alt="VM console of a stuck worker: FAILED Failed to mount /sysroot, two Dependency failed lines, Entering emergency mode" loading="lazy"></figure>
+<p><em>S27. What a stuck node looked like from vCenter during the first build, captured with <code>govc vm.console -capture</code>: the guest never mounted its root file system, so VMware Tools never started and the VM never reported an IP. The seventh VM, added later on its own, booted on the first attempt.</em></p>
+<p>The lesson for a demo: build the cluster the day before, or at least start the sync before the audience arrives. The commit-to-VM moment is real and fast; a nested lab's storage is not.</p>
+<h2 id="appendix-a-the-jump-host">Appendix A: the jump host</h2>
+<p>Everything in Part 1 is run from one Ubuntu VM on the outer lab network, built from cloud-init. It is not inside Holodeck, so it needs two things before any VCF tool works: a route into the Holodeck networks through the VyOS, and name resolution for <code>*.vcf.lab</code>. Both live in netplan so they survive a reboot.</p>
+<pre><code class="language-yaml"># example file name; on the lab jump host the same route and DNS sit in a NetworkManager-generated file under /etc/netplan
+network:
+  version: 2
+  ethernets:
+    ens192:
+      routes:
+      - to: 10.1.0.0/20          # Holodeck management, VLAN 24 and the SNAT/VIP block behind VLAN 200
+        via: 10.0.6.33           # the VyOS
+      nameservers:
+        addresses: [10.0.4.17]   # resolves *.vcf.lab; fall back to IPs if you skip this
+        search: [vcf.lab]
+</code></pre>
+<pre><code>sudo netplan apply
+ip route get 10.1.1.24            # NSX Manager of the workload domain, via 10.0.6.33
+dig +short sddcmanager-a.site-a.vcf.lab
+</code></pre>
+<p>The tools, in the order they are used. All Broadcom binaries come from the support portal download for VCF 9.1 (VCF Consumption CLI, its plugin bundle, and the Argo CD Supervisor Service, which is where the customised <code>argocd</code> CLI ships).</p>
+<pre><code># VCF CLI and its plugin bundle
+tar -xzvf VCF-Consumption-CLI-Linux_AMD64-9.1.0.tar.gz
+sudo install ./vcf-cli-linux_amd64 /usr/local/bin/vcf
+mkdir -p ~/vcf-plugin-bundle
+tar -xvzf VCF-Consumption-CLI-PluginBundle-Linux_AMD64-9.1.0.0.25305443.tar.gz -C ~/vcf-plugin-bundle/
+vcf plugin install all --local-source ~/vcf-plugin-bundle/
+vcf version &amp;&amp; vcf plugin list     # argocd  v1.2.0  installed
+
+# kubectl and the vSphere plugin, served by the Supervisor itself
+curl -sk https://&lt;supervisor-ip&gt;/wcp/plugin/linux-amd64/vsphere-plugin.zip -o vsphere-plugin.zip
+unzip -o vsphere-plugin.zip &amp;&amp; sudo install bin/kubectl bin/kubectl-vsphere /usr/local/bin/
+
+# Argo CD CLI: on this jump host it is the argocd plugin of the VCF CLI, typed `vcf argocd ...`.
+# The Argo CD Supervisor Service download also carries a standalone customised binary;
+# if you install that one instead, drop the `vcf` prefix from the commands in Part 1.
+vcf argocd version                 # v1.2.0 (the plugin takes no --client flag)
+
+# Carvel tools, to read the service bundle the Operator installs from
+curl -L https://carvel.dev/install.sh | sudo bash     # imgpkg, kapp, ytt, kbld
+
+# everything else
+sudo apt-get install -y git dnsutils jq
+</code></pre>
+<p>Log in once per Supervisor and once per VKS cluster. <code>vcf context create</code> writes the credentials into <code>~/.kube/config</code> (or <code>$KUBECONFIG</code>), so <code>kubectl</code> and <code>argocd</code> use them without further flags; <code>kubectl vsphere login</code> is the older equivalent and still works.</p>
+<pre><code># Supervisor, as the vSphere admin; the context name is yours to pick
+vcf context create sv-a --endpoint https://&lt;supervisor-ip&gt; \
+  --username administrator@vsphere.local --type k8s
+vcf context use sv-a:argocd-demo-wqfbg          # hosting namespace
+
+# a VKS cluster, once it exists (Part 1, step 5)
+vcf context create demo-vks --endpoint https://&lt;supervisor-ip&gt; \
+  --username administrator@vsphere.local --type k8s \
+  --workload-cluster-namespace podinfo-demo-vkjhr --workload-cluster-name demo-vks-cluster
+vcf context list
+
+# what the lab run actually used, and what to re-run when kubectl says Unauthorized
+kubectl vsphere login --server 10.1.8.132 --vsphere-username administrator@vsphere.local \
+  --insecure-skip-tls-verify                                      # Supervisor context 10.1.8.132
+kubectl vsphere login --server 10.1.8.132 --vsphere-username administrator@vsphere.local \
+  --insecure-skip-tls-verify --tanzu-kubernetes-cluster-namespace podinfo-demo-vkjhr \
+  --tanzu-kubernetes-cluster-name demo-vks-cluster                # context demo-vks-cluster
+</code></pre>
+<figure class="shot"><img src="blog/assets/p2-35.png" alt="Terminal on the jump host: vcf version v9.0.2, vcf plugin list with argocd v1.2.0, kubectl client v1.31.11, vcf argocd version v1.2.0, vcf context list" loading="lazy"></figure>
+<p><em>S0. The jump host's toolset: VCF CLI v9.0.2 with the <code>argocd</code> plugin v1.2.0, the Supervisor's <code>kubectl</code> (v1.31.11), and the VCF Automation contexts.</em></p>
+<p>The repository <code>holodeck-automation</code> on the same host holds the PowerShell helpers used around the lab (for instance enabling SSH on the VNA nodes through the NSX API); none of them are needed for this walkthrough.</p>
+<h2 id="appendix-b-rbac-policy-and-appproject">Appendix B: RBAC policy and AppProject</h2>
+<p>The RBAC policy lives in the <code>argocd-rbac-cm</code> ConfigMap in the hosting namespace. The default policy for anyone logged in is <code>role:readonly</code>; only <code>admin</code> has <code>role:admin</code> out of the box.</p>
+<pre><code># argocd-rbac-cm  data.policy.csv
+p, role:platform, applications, *,      */*,        allow
+p, role:platform, projects,     *,      *,          allow
+p, role:platform, clusters,     *,      *,          allow
+p, role:app-team, applications, get,    apps/*,     allow
+p, role:app-team, applications, sync,   apps/*,     allow
+p, role:app-team, applications, action/*, apps/*,  allow
+g, platform-admins@holo-east, role:platform
+g, podinfo-devs@holo-east,    role:app-team
+</code></pre>
+<p>The app team can see and sync Applications in the <code>apps</code> Project and run actions on them (restart a rollout, say), but cannot create Applications, touch the <code>infra</code> Project, or register targets. With local accounts the <code>g</code> lines name the account instead of a group; with OIDC they name the group claim.</p>
+<p>The <code>apps</code> Project restricts sources to this repository, destinations to the VKS cluster and <code>podinfo*</code> namespaces, allows no cluster-scoped objects, blacklists <code>ResourceQuota</code> and <code>LimitRange</code>, and denies syncs from Friday 22:00 for 48 hours. The full YAML is <a href="https://github.com/sorinplaton/vcf-gitops/blob/blog-part1/examples/projects/appproject-apps.yaml"><code>examples/projects/appproject-apps.yaml</code></a>, and the policy above is <a href="https://github.com/sorinplaton/vcf-gitops/blob/blog-part1/examples/rbac/policy.csv"><code>examples/rbac/policy.csv</code></a>.</p>
+<p>Two cautions. <code>CreateNamespace=true</code> on <code>podinfo-vks</code> creates a Namespace, which is cluster-scoped, so with an empty <code>clusterResourceWhitelist</code> either whitelist <code>Namespace</code> or create the namespace outside the app. And none of this was applied in the lab: the live <code>argocd-rbac-cm</code> has an empty <code>policy.csv</code> (<a href="https://github.com/sorinplaton/vcf-gitops/blob/blog-part1/platform/argocd/argocd-rbac-cm.yaml">export</a>) and all three Applications run in the <code>default</code> Project.</p>
+<p>A second Project, <code>infra</code>, allows <code>cluster.x-k8s.io</code> and <code>addons.kubernetes.vmware.com</code> kinds with the Supervisor as its only destination.</p>
+<h3 id="sources">Sources</h3>
+<ul>
+<li><em>The VLAN Nobody Was Listening On</em>, the lab post-mortem this part is built on</li>
+<li><a href="https://argo-cd.readthedocs.io/en/stable/operator-manual/rbac/">Argo CD RBAC configuration</a> and <a href="https://argo-cd.readthedocs.io/en/stable/user-guide/projects/">Projects</a>, upstream Argo CD documentation</li>
+<li>VMware Cloud Foundation 9.1 documentation bundle: <em>VCF Edge: Single Node with Argo CD Design Blueprint</em>, sizing and authentication design (pp. 1371–1373)</li>
+<li><a href="https://github.com/sorinplaton/holodeck-automation">holodeck-automation</a> README; <a href="https://github.com/vmware/vsphere-supervisor/blob/main/airgapped/air-gapped-vcf91.md">Air-gapped VCF 9.1 guide</a>; <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/building-your-cloud-applications/getting-started-with-the-tools-for-building-applications/installing-and-using-vcf-cli-v9/command-reference2/system-commands(1)/context2.html">VCF CLI context command reference</a></li>
+<li><a href="https://github.com/sorinplaton/vcf-gitops/tree/blog-part1">sorinplaton/vcf-gitops at tag blog-part1</a>, the repository Part 1 deploys from, with the Part 2 examples under <code>examples/</code></li>
+</ul>
+<footer>Every file and commit referenced here is in <a href="https://github.com/sorinplaton/vcf-gitops/tree/blog-part1">sorinplaton/vcf-gitops</a> at tag <code>blog-part1</code>.</footer>
+</main>
+</body>
+</html>
