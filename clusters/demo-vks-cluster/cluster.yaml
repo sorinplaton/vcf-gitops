@@ -32,7 +32,7 @@ spec:
         variables:
           overrides:
           - name: vmClass
-            value: best-effort-xsmall
+            value: best-effort-medium
     variables:
     - name: vmClass
       value: best-effort-small
