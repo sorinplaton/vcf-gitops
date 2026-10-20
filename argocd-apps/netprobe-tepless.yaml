@@ -1,0 +1,20 @@
+# netprobe on demo-git (TEP-less VLAN-backed VPC). Same Git path for both networks; only the destination differs.
+# targetRevision is the PR branch until PR #3 is merged; then change it to main.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: netprobe-tepless
+  namespace: argocd-demo-xxms8
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git
+    path: apps/netprobe
+    targetRevision: tepless-vks
+  destination:
+    server: https://10.203.203.5:6443
+    namespace: netprobe
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

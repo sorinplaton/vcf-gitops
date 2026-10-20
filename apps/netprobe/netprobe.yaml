@@ -1,0 +1,113 @@
+# netprobe: shows what the network does to traffic, so overlay (TEP) and TEP-less clusters
+# can be compared with the same manifest. Public images only, no build needed.
+#   whoami  (traefik/whoami)     HTTP :80   -> pod IP, node name, and the client IP the pod sees
+#   iperf3  (networkstatic/iperf3) TCP :5201 -> throughput / latency tests
+#   toolbox (nicolaka/netshoot)  shell     -> egress IP, path MTU, pod-to-pod tests from inside
+# Services:
+#   netprobe-lb-local    LoadBalancer, externalTrafficPolicy Local   (client IP preserved)
+#   netprobe-lb-cluster  LoadBalancer, externalTrafficPolicy Cluster (client IP may be NATed)
+#   netprobe-nodeport    NodePort 30080 / 30201                       (direct to the node IPs)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netprobe
+  labels:
+    pod-security.kubernetes.io/enforce: baseline      # whoami listens on :80; ping needs NET_RAW
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netprobe
+  namespace: netprobe
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: netprobe }
+  template:
+    metadata:
+      labels: { app: netprobe }
+    spec:
+      topologySpreadConstraints:                       # one replica per node where possible
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels: { app: netprobe }
+      containers:
+      - name: whoami
+        image: traefik/whoami:v1.10.3
+        ports:
+        - { name: http, containerPort: 80 }
+        env:
+        - name: WHOAMI_NAME                           # printed as "Name:" -> the node the pod runs on
+          valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+        resources:
+          requests: { cpu: 10m, memory: 16Mi }
+          limits:   { cpu: 200m, memory: 64Mi }
+      - name: iperf3
+        image: networkstatic/iperf3:latest
+        args: ["-s"]
+        ports:
+        - { name: iperf3, containerPort: 5201 }
+        resources:
+          requests: { cpu: 10m, memory: 16Mi }
+          limits:   { cpu: "1", memory: 128Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: toolbox
+  namespace: netprobe
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: toolbox }
+  template:
+    metadata:
+      labels: { app: toolbox }
+    spec:
+      containers:
+      - name: netshoot
+        image: nicolaka/netshoot:v0.13
+        command: ["sleep", "infinity"]
+        resources:
+          requests: { cpu: 10m, memory: 32Mi }
+          limits:   { cpu: "1", memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netprobe-lb-local
+  namespace: netprobe
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector: { app: netprobe }
+  ports:
+  - { name: http,   port: 80,   targetPort: http }
+  - { name: iperf3, port: 5201, targetPort: iperf3 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netprobe-lb-cluster
+  namespace: netprobe
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector: { app: netprobe }
+  ports:
+  - { name: http, port: 80, targetPort: http }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netprobe-nodeport
+  namespace: netprobe
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: { app: netprobe }
+  ports:
+  - { name: http,   port: 80,   targetPort: http,   nodePort: 30080 }
+  - { name: iperf3, port: 5201, targetPort: iperf3, nodePort: 30201 }
