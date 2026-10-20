@@ -1,0 +1,20 @@
+# netprobe on overlay-public (overlay VPC, nodes on a PUBLIC subnet). Same Git path as the other two.
+# targetRevision is the PR branch until PR #3 is merged; then change it to main.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: netprobe-overlay-public
+  namespace: argocd-demo-xxms8
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git
+    path: apps/netprobe
+    targetRevision: tepless-vks
+  destination:
+    name: overlay-public                    # registered by platform/overlay-public/managedentity.yaml
+    namespace: netprobe
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

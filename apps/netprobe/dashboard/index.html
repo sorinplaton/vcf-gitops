@@ -8,16 +8,16 @@
 /* Layout: header strip, then one column per network (side by side on wide screens), a row per path. */
 :root {
   --bg: #f4f5f2; --card: #ffffff; --fg: #1c211e; --muted: #64706a; --line: #dde2dc; --soft: #eef1ec;
-  --tepless: #0f7a5c; --overlay: #4b5cc4; --ok: #1f8a4c; --bad: #c0392b; --warn: #b7791f;
+  --tepless: #0f7a5c; --overlay: #4b5cc4; --public: #a35a12; --ok: #1f8a4c; --bad: #c0392b; --warn: #b7791f;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #121513; --card: #1a1e1b; --fg: #e6ebe7; --muted: #94a19a; --line: #2b322d; --soft: #222824;
-  --tepless: #3fc29a; --overlay: #8c9bf2; --ok: #4cc27f; --bad: #ef7466; --warn: #e3a94d; color-scheme: dark } }
+  --tepless: #3fc29a; --overlay: #8c9bf2; --public: #e7a35a; --ok: #4cc27f; --bad: #ef7466; --warn: #e3a94d; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #121513; --card: #1a1e1b; --fg: #e6ebe7; --muted: #94a19a; --line: #2b322d; --soft: #222824;
-  --tepless: #3fc29a; --overlay: #8c9bf2; --ok: #4cc27f; --bad: #ef7466; --warn: #e3a94d; color-scheme: dark }
+  --tepless: #3fc29a; --overlay: #8c9bf2; --public: #e7a35a; --ok: #4cc27f; --bad: #ef7466; --warn: #e3a94d; color-scheme: dark }
 * { box-sizing: border-box }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--sans) }
 main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 40px; display: flex; flex-direction: column; gap: 18px }
@@ -25,9 +25,9 @@ header { display: flex; flex-wrap: wrap; justify-content: space-between; align-i
 h1 { font-size: 22px; margin: 0; letter-spacing: -.01em }
 h1 span { color: var(--muted); font-weight: 500 }
 .meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px }
 .col { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; border-top: 4px solid var(--accent); min-width: 0; display: flex; flex-direction: column; gap: 14px }
-.col.tepless { --accent: var(--tepless) } .col.overlay { --accent: var(--overlay) }
+.col.tepless { --accent: var(--tepless) } .col.overlay { --accent: var(--overlay) } .col.public { --accent: var(--public) }
 .col h2 { margin: 0; font-size: 17px; color: var(--accent) }
 .col .cid { font: 12px var(--mono); color: var(--muted) }
 .path { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px }
@@ -56,7 +56,7 @@ footer { color: var(--muted); font-size: 12.5px; max-width: 80ch }
 <body>
 <main>
   <header>
-    <h1>netprobe <span>· same app, two networks</span></h1>
+    <h1>netprobe <span>· same app, three networks</span></h1>
     <div class="meta">refresh every 5 s · last <span id="t">–</span></div>
   </header>
   <div class="grid" id="grid"><div class="meta">Loading configuration…</div></div>
@@ -72,7 +72,7 @@ const esc = s => String(s ?? '–').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<'
 const hist = {};                 // url -> last 30 latencies (ms) or null for failures
 let CFG = null;
 
-function kind(c) { return /tep-?less/i.test(c.label) ? 'tepless' : 'overlay'; }
+function kind(c) { return c.style || (/tep-?less/i.test(c.label) ? 'tepless' : 'overlay'); }
 function clientWhy(info, path) {
   const ip = info.client || '';
   if (/^100\.64\./.test(ip)) return 'VPC load balancer address';

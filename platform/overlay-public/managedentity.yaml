@@ -1,0 +1,14 @@
+# Registers overlay-public in Argo CD argocd-1. Same Supervisor as Argo CD, so the Argo CD
+# Supervisor Service creates the cluster secret itself (no token, no firewall change).
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ManagedEntity
+metadata:
+  name: overlay-public
+  namespace: argocd-demo-xxms8
+spec:
+  clusterName: overlay-public
+  targetRef:
+    apiGroup: cluster.x-k8s.io
+    kind: Cluster
+    name: overlay-public
+    namespace: podinfo-demo-dx643
