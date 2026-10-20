@@ -13,13 +13,13 @@ on 2026-10-20 as `admin-tepless@tepless`.
 | `04-subnetset-public.yaml` | SubnetSet `public`, access mode Public, 32 addresses | Ready | +22 s |
 
 Two VKS clusters use this namespace: `tepless-demo`, built in the VCF Automation UI (Custom
-Configuration, custom primary network = `public`), and `tepless-demo2`, applied from Git:
-`clusters/tepless-demo2/cluster.yaml`. VCF Automation generated the same `networks` variable as that file.
+Configuration, custom primary network = `public`), and `demo-git`, applied from Git:
+`clusters/demo-git/cluster.yaml`. VCF Automation generated the same `networks` variable as that file.
 
-## Apply tepless-demo2 from Git
+## Apply demo-git from Git
 
 ```bash
-RAW=https://raw.githubusercontent.com/sorinplaton/vcf-gitops/main/clusters/tepless-demo2/cluster.yaml
+RAW=https://raw.githubusercontent.com/sorinplaton/vcf-gitops/main/clusters/demo-git/cluster.yaml
 kubectl apply -f $RAW          # with a kubectl context on the namespace tepless-demo-4tvk7
 kubectl -n tepless-demo-4tvk7 get cluster,machines -w
 ```

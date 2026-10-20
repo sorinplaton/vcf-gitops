@@ -9,7 +9,7 @@
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
-  name: tepless-demo2
+  name: demo-git
   namespace: tepless-demo-4tvk7
 spec:
   clusterNetwork:
