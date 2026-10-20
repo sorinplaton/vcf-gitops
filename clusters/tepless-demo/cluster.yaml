@@ -20,12 +20,12 @@ spec:
     classRef:
       name: builtin-generic-v3.7.0
       namespace: vmware-system-vks-public
-    version: v1.35.6+vmware.2-vkr.3   # from: kubectl get kr (first release offered, 2026-10-20)
+    version: v1.36.2+vmware.2-vkr.3   # from: kubectl get kr; v1.35.6+ ship Ubuntu node images only
     controlPlane:
       replicas: 1
       metadata:
         annotations:
-          run.tanzu.vmware.com/resolve-os-image: os-name=photon
+          run.tanzu.vmware.com/resolve-os-image: os-name=ubuntu
     workers:
       machineDeployments:
       - class: node-pool
@@ -33,7 +33,7 @@ spec:
         replicas: 2
         metadata:
           annotations:
-            run.tanzu.vmware.com/resolve-os-image: os-name=photon
+            run.tanzu.vmware.com/resolve-os-image: os-name=ubuntu
         variables:
           overrides:
           - name: vmClass
