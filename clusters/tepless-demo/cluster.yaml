@@ -1,6 +1,6 @@
 # VKS cluster on the TEP-less (VLAN-backed VPC) workload domain. NOT applied yet and
 # NOT watched by Argo CD. Prerequisite: a Kubernetes Service content library on the
-# Supervisor sup-wld02-tepless (the namespace lists no KubernetesReleases until then).
+# Supervisor sup-wld02-tepless: set 2026-10-20 (subscribed library "VKS", on demand).
 # The "networks" variable (checked against builtin-generic-v3.7.0 on this Supervisor)
 # puts the nodes on the public SubnetSet; the default private network is refused in a
 # VLAN-backed VPC ("cannot use the default private network in a VPC namespace without SNAT").
@@ -20,7 +20,7 @@ spec:
     classRef:
       name: builtin-generic-v3.7.0
       namespace: vmware-system-vks-public
-    version: v1.35.5+vmware.1-vkr.1   # pick from: kubectl get kr
+    version: v1.35.6+vmware.2-vkr.3   # from: kubectl get kr (first release offered, 2026-10-20)
     controlPlane:
       replicas: 1
       metadata:
