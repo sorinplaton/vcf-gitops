@@ -2,7 +2,7 @@
 # (see platform/tepless/README.md). NOT watched by Argo CD. 1 control plane + 1 worker so it fits
 # the namespace memory limit (32 GiB) next to tepless-demo, which was built in the VCF Automation UI.
 # Prerequisite: the Supervisor sup-wld02-tepless needs a Kubernetes Service content library
-# (set 2026-10-20: subscribed library "VKS", on demand). Releases after v1.35.0 are Ubuntu-only.
+# (set 2026-10-20: subscribed library "VKS", on demand). Pin os-name AND os-version: v1.36.2 has Photon 5, Ubuntu 22.04 and 24.04 images.
 # The "networks" variable (checked against builtin-generic-v3.7.0 on this Supervisor)
 # puts the nodes on the public SubnetSet; the default private network is refused in a
 # VLAN-backed VPC ("cannot use the default private network in a VPC namespace without SNAT").
@@ -22,12 +22,12 @@ spec:
     classRef:
       name: builtin-generic-v3.7.0
       namespace: vmware-system-vks-public
-    version: v1.36.2+vmware.2-vkr.3   # from: kubectl get kr; v1.35.6+ ship Ubuntu node images only
+    version: v1.36.2+vmware.2-vkr.3   # from: kubectl get kr
     controlPlane:
       replicas: 1
       metadata:
         annotations:
-          run.tanzu.vmware.com/resolve-os-image: os-name=ubuntu
+          run.tanzu.vmware.com/resolve-os-image: os-name=ubuntu,os-version=24.04
     workers:
       machineDeployments:
       - class: node-pool
@@ -35,7 +35,7 @@ spec:
         replicas: 1
         metadata:
           annotations:
-            run.tanzu.vmware.com/resolve-os-image: os-name=ubuntu
+            run.tanzu.vmware.com/resolve-os-image: os-name=ubuntu,os-version=24.04
         variables:
           overrides:
           - name: vmClass
