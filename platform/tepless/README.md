@@ -12,7 +12,17 @@ on 2026-10-20 as `admin-tepless@tepless`.
 | `03-namespace.yaml` | Supervisor namespace, class `small`, zone-11 | `tepless-demo-4tvk7`, Created | +70 s |
 | `04-subnetset-public.yaml` | SubnetSet `public`, access mode Public, 32 addresses | Ready | +22 s |
 
-The VKS cluster that uses this namespace is `clusters/tepless-demo/cluster.yaml`.
+Two VKS clusters use this namespace: `tepless-demo`, built in the VCF Automation UI (Custom
+Configuration, custom primary network = `public`), and `tepless-demo2`, applied from Git:
+`clusters/tepless-demo2/cluster.yaml`. VCF Automation generated the same `networks` variable as that file.
+
+## Apply tepless-demo2 from Git
+
+```bash
+RAW=https://raw.githubusercontent.com/sorinplaton/vcf-gitops/main/clusters/tepless-demo2/cluster.yaml
+kubectl apply -f $RAW          # with a kubectl context on the namespace tepless-demo-4tvk7
+kubectl -n tepless-demo-4tvk7 get cluster,machines -w
+```
 
 ## Networks: Day-0 and Day-1
 

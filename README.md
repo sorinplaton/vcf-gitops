@@ -11,7 +11,7 @@ Blog: <link to come>
 | Folder | What it holds | Live or example |
 |---|---|---|
 | `clusters/` | VKS cluster definitions (Cluster API `Cluster` objects). `clusters/demo-vks-cluster/cluster.yaml` is the six-VM cluster (3 control plane, 3 workers). | **Live.** Watched by Argo CD. |
-| `clusters/tepless-demo/` | VKS cluster for the TEP-less workload domain (1 control plane, 2 workers) on the Public SubnetSet. | **Not applied, not watched** by Argo CD. |
+| `clusters/tepless-demo2/` | VKS cluster for the TEP-less workload domain (1 control plane, 1 worker) on the Public SubnetSet. | Applied with `kubectl apply` from Git; **not watched** by Argo CD. |
 | `apps/` | Workloads deployed inside the VKS cluster. `apps/podinfo/podinfo.yaml` is the podinfo Deployment and LoadBalancer Service. | **Live.** Watched by Argo CD. |
 | `argocd-apps/` | The Argo CD `Application` objects themselves, exported from the lab ("app of apps"). `root.yaml` is the parent application. | The three child files match what is live. `root.yaml` is **not applied** (see its header). |
 | `platform/argocd/` | The `ArgoCD` object and the two config maps of the Argo CD instance, exported from the lab. | Copy of what is live. Reference only. |
@@ -48,7 +48,7 @@ application created, and for `demo-vks-cluster` that is the six VMs.
 
 A second workload domain, `tepless-wkld`, runs VPC networking without NSX tunnel endpoints.
 `platform/tepless/` holds what was applied through VCF Automation (organization `tepless`,
-region `tepless`), with timings and gotchas in its README; `clusters/tepless-demo/cluster.yaml`
+region `tepless`), with timings and gotchas in its README; `clusters/tepless-demo2/cluster.yaml`
 is the VKS cluster for it. Nodes take routable addresses from VLAN 203 (10.203.203.0/24)
 through a Public SubnetSet, because a VLAN-backed VPC has no private default network.
 
