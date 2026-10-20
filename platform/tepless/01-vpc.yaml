@@ -1,0 +1,11 @@
+# Applied 2026-10-20 as admin-tepless@tepless through the VCF Automation CCI API
+# (kubectl --server https://<vcfa>/cci/kubernetes). VCF Automation named the VPC vpc-tepless-demo-p5gsf.
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: VPC
+metadata:
+  generateName: vpc-tepless-demo-
+  namespace: default-project
+spec:
+  description: TEP-less VKS blog demo
+  projectName: default-project
+  regionName: tepless
