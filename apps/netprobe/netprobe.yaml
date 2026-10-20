@@ -3,6 +3,7 @@
 #   whoami  (traefik/whoami)     HTTP :80   -> pod IP, node name, and the client IP the pod sees
 #   iperf3  (networkstatic/iperf3) TCP :5201 -> throughput / latency tests
 #   toolbox (nicolaka/netshoot)  shell     -> egress IP, path MTU, pod-to-pod tests from inside
+#   dashboard (python:3.12-alpine + ConfigMap) HTTP :8080 -> the side-by-side page (apps/netprobe/dashboard)
 # Services:
 #   netprobe-lb-local    LoadBalancer, externalTrafficPolicy Local   (client IP preserved)
 #   netprobe-lb-cluster  LoadBalancer, externalTrafficPolicy Cluster (client IP may be NATed)
@@ -52,6 +53,27 @@ spec:
         resources:
           requests: { cpu: 10m, memory: 16Mi }
           limits:   { cpu: "1", memory: 128Mi }
+      - name: dashboard
+        image: python:3.12.7-alpine3.20
+        command: ["python3", "-I", "/app/app.py"]
+        ports:
+        - { name: dash, containerPort: 8080 }
+        env:
+        - { name: POD_NAME,  valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+        - { name: POD_IP,    valueFrom: { fieldRef: { fieldPath: status.podIP } } }
+        - { name: NODE_NAME, valueFrom: { fieldRef: { fieldPath: spec.nodeName } } }
+        - { name: HOST_IP,   valueFrom: { fieldRef: { fieldPath: status.hostIP } } }
+        securityContext: { runAsNonRoot: true, runAsUser: 65534, allowPrivilegeEscalation: false }
+        volumeMounts:
+        - { name: dashboard, mountPath: /app, readOnly: true }
+        readinessProbe:
+          httpGet: { path: /healthz, port: dash }
+        resources:
+          requests: { cpu: 10m, memory: 24Mi }
+          limits:   { cpu: 200m, memory: 96Mi }
+      volumes:
+      - name: dashboard
+        configMap: { name: netprobe-dashboard }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -86,6 +108,7 @@ spec:
   ports:
   - { name: http,   port: 80,   targetPort: http }
   - { name: iperf3, port: 5201, targetPort: iperf3 }
+  - { name: dash,   port: 8080, targetPort: dash }
 ---
 apiVersion: v1
 kind: Service
@@ -98,6 +121,7 @@ spec:
   selector: { app: netprobe }
   ports:
   - { name: http, port: 80, targetPort: http }
+  - { name: dash, port: 8080, targetPort: dash }
 ---
 apiVersion: v1
 kind: Service
@@ -111,3 +135,4 @@ spec:
   ports:
   - { name: http,   port: 80,   targetPort: http,   nodePort: 30080 }
   - { name: iperf3, port: 5201, targetPort: iperf3, nodePort: 30201 }
+  - { name: dash,   port: 8080, targetPort: dash,   nodePort: 30090 }

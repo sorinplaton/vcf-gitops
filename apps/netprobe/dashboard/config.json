@@ -1,0 +1,13 @@
+{
+  "clusters": [
+    {"id": "demo-git", "label": "TEP-less · VLAN-backed VPC",
+     "paths": [
+       {"name": "Load balancer", "url": "http://10.203.203.8:8080"},
+       {"name": "Direct to node", "url": "http://10.203.203.37:30090"}]},
+    {"id": "demo-vks-cluster", "label": "Overlay · VPC with TEPs",
+     "paths": [
+       {"name": "Load balancer", "url": "http://10.200.200.9:8080"},
+       {"name": "Direct to node", "url": "http://10.17.17.6:30090"}]}
+  ],
+  "echo": ["http://10.203.203.1:18080/", "http://10.200.200.1:18080/"]
+}

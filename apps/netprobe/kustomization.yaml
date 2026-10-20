@@ -1,0 +1,13 @@
+# Argo CD renders this folder with Kustomize: the dashboard files become a ConfigMap whose
+# name carries a content hash, so a change to any of them rolls the netprobe pods.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- netprobe.yaml
+configMapGenerator:
+- name: netprobe-dashboard
+  namespace: netprobe
+  files:
+  - dashboard/app.py
+  - dashboard/index.html
+  - dashboard/config.json

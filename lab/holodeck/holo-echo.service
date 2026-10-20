@@ -1,0 +1,12 @@
+[Unit]
+Description=netprobe echo observer on 10.200.200.1 and 10.203.203.1 port 18080
+After=network-online.target holo-vlan200.service holo-vlan203.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/holo-echo.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

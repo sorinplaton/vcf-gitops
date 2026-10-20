@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>netprobe</title>
+<style>
+/* Layout: header strip, then one column per network (side by side on wide screens), a row per path. */
+:root {
+  --bg: #f4f5f2; --card: #ffffff; --fg: #1c211e; --muted: #64706a; --line: #dde2dc; --soft: #eef1ec;
+  --tepless: #0f7a5c; --overlay: #4b5cc4; --ok: #1f8a4c; --bad: #c0392b; --warn: #b7791f;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121513; --card: #1a1e1b; --fg: #e6ebe7; --muted: #94a19a; --line: #2b322d; --soft: #222824;
+  --tepless: #3fc29a; --overlay: #8c9bf2; --ok: #4cc27f; --bad: #ef7466; --warn: #e3a94d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121513; --card: #1a1e1b; --fg: #e6ebe7; --muted: #94a19a; --line: #2b322d; --soft: #222824;
+  --tepless: #3fc29a; --overlay: #8c9bf2; --ok: #4cc27f; --bad: #ef7466; --warn: #e3a94d; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--sans) }
+main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 40px; display: flex; flex-direction: column; gap: 18px }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em }
+h1 span { color: var(--muted); font-weight: 500 }
+.meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px }
+.col { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; border-top: 4px solid var(--accent); min-width: 0; display: flex; flex-direction: column; gap: 14px }
+.col.tepless { --accent: var(--tepless) } .col.overlay { --accent: var(--overlay) }
+.col h2 { margin: 0; font-size: 17px; color: var(--accent) }
+.col .cid { font: 12px var(--mono); color: var(--muted) }
+.path { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px }
+.path .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap }
+.path .name { font-weight: 600 }
+.path .url { font: 12px var(--mono); color: var(--muted); word-break: break-all }
+.pill { font: 600 12px var(--sans); padding: 3px 9px; border-radius: 999px; white-space: nowrap }
+.pill.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok) }
+.pill.bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad) }
+.pill.wait { background: var(--soft); color: var(--muted) }
+dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 13.5px }
+dt { color: var(--muted) }
+dd { margin: 0; font: 13px var(--mono); min-width: 0; overflow-wrap: anywhere }
+dd .why { font: 12px var(--sans); color: var(--muted); margin-left: 6px }
+.egress { background: var(--soft); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px }
+.egress .k { color: var(--muted); font-size: 13px }
+.egress .v { font: 600 18px var(--mono) }
+.egress .why { font-size: 13px; color: var(--muted) }
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 26px }
+.spark i { flex: 1; background: color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 2px 2px 0 0; min-height: 2px }
+.spark i.x { background: color-mix(in srgb, var(--bad) 55%, transparent) }
+footer { color: var(--muted); font-size: 12.5px; max-width: 80ch }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>netprobe <span>· same app, two networks</span></h1>
+    <div class="meta">refresh every 5 s · last <span id="t">–</span></div>
+  </header>
+  <div class="grid" id="grid"><div class="meta">Loading configuration…</div></div>
+  <footer>
+    Each column asks one cluster twice: through its load balancer and straight at a node (NodePort).
+    "Sees you as" is the client address the pod receives. "Leaves the cluster as" is the source address a
+    neutral observer on the holorouter sees when the pod calls out. Latency is measured from this browser.
+  </footer>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '–').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hist = {};                 // url -> last 30 latencies (ms) or null for failures
+let CFG = null;
+
+function kind(c) { return /tep-?less/i.test(c.label) ? 'tepless' : 'overlay'; }
+function clientWhy(info, path) {
+  const ip = info.client || '';
+  if (/^100\.64\./.test(ip)) return 'VPC load balancer address';
+  if (/^100\.9[6-9]\.|^100\.1[01]\d\./.test(ip)) return 'node, after kube-proxy NAT';
+  if (path.name.startsWith('Direct')) return 'your real address';
+  if (ip.startsWith(info.nodeIP.split('.').slice(0, 3).join('.') + '.')) return 'load balancer address on the VLAN';
+  return '';
+}
+function egressWhy(info) {
+  const e = info.egress || {};
+  if (!e.ip) return 'no observer reachable';
+  if (e.ip === info.nodeIP) return "the node's own VLAN address: no NAT, the network sees which node talked";
+  return 'a shared NAT address: every workload in the VPC looks the same from outside';
+}
+
+async function probe(url) {
+  const t0 = performance.now();
+  try {
+    const r = await fetch(url + '/api/info', { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+    const info = await r.json();
+    return { ok: true, ms: Math.round(performance.now() - t0), info };
+  } catch (e) { return { ok: false, err: e.name === 'TimeoutError' ? 'no answer within 4 s' : e.message }; }
+}
+function spark(url) {
+  return '<div class="spark" aria-hidden="true">' + (hist[url] || []).map(v =>
+    v == null ? '<i class="x" style="height:100%"></i>' : `<i style="height:${Math.min(100, 8 + v)}%"></i>`).join('') + '</div>';
+}
+
+function render(results) {
+  $('#grid').innerHTML = CFG.clusters.map((c, ci) => {
+    const egressFrom = results[ci].find(r => r.ok)?.info;
+    return `<section class="col ${kind(c)}">
+      <div><h2>${esc(c.label)}</h2><div class="cid">cluster ${esc(c.id)}</div></div>
+      ${c.paths.map((p, pi) => {
+        const r = results[ci][pi], i = r.ok ? r.info : null;
+        return `<div class="path">
+          <div class="top"><span class="name">${esc(p.name)}</span>
+            <span class="pill ${r.ok ? 'ok' : 'bad'}">${r.ok ? 'reachable · ' + r.ms + ' ms' : 'unreachable'}</span></div>
+          <div class="url">${esc(p.url)}</div>
+          ${i ? `<dl>
+            <dt>Answered by</dt><dd>${esc(i.node)}</dd>
+            <dt>Node IP</dt><dd>${esc(i.nodeIP)}</dd>
+            <dt>Pod</dt><dd>${esc(i.pod)} · ${esc(i.podIP)}</dd>
+            <dt>Sees you as</dt><dd>${esc(i.client)}<span class="why">${esc(clientWhy(i, p))}</span></dd>
+          </dl>` : `<dl><dt>Result</dt><dd>${esc(r.err)}</dd></dl>`}
+          ${spark(p.url)}
+        </div>`;
+      }).join('')}
+      <div class="egress"><span class="k">Leaves the cluster as</span>
+        <span class="v">${esc(egressFrom?.egress?.ip)}</span>
+        <span class="why">${egressFrom ? esc(egressWhy(egressFrom)) : 'cluster not reachable'}</span></div>
+    </section>`;
+  }).join('');
+  $('#t').textContent = new Date().toLocaleTimeString();
+}
+
+async function tick() {
+  const results = await Promise.all(CFG.clusters.map(c => Promise.all(c.paths.map(p => probe(p.url)))));
+  CFG.clusters.forEach((c, ci) => c.paths.forEach((p, pi) => {
+    const h = hist[p.url] = hist[p.url] || [];
+    h.push(results[ci][pi].ok ? results[ci][pi].ms : null); if (h.length > 30) h.shift();
+  }));
+  render(results);
+}
+(async () => {
+  try { CFG = await (await fetch('/config', { cache: 'no-store' })).json(); }
+  catch (e) { $('#grid').innerHTML = '<div class="meta">Could not load /config: ' + esc(e.message) + '</div>'; return; }
+  await tick(); setInterval(tick, 5000);
+})();
+</script>
+</body>
+</html>
