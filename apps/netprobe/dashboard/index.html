@@ -84,7 +84,7 @@ function clientWhy(info, path) {
 function egressWhy(info) {
   const e = info.egress || {};
   if (!e.ip) return 'no observer reachable';
-  if (e.ip === info.nodeIP) return "the node's own VLAN address: no NAT, the network sees which node talked";
+  if (e.ip === info.nodeIP) return "the node's own routable address: no NAT, the network sees which node talked";
   return 'a shared NAT address: every workload in the VPC looks the same from outside';
 }
 

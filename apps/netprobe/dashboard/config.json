@@ -7,7 +7,11 @@
     {"id": "demo-vks-cluster", "label": "Overlay · VPC with TEPs",
      "paths": [
        {"name": "Load balancer", "url": "http://10.200.200.9:8080"},
-       {"name": "Direct to node", "url": "http://10.17.17.6:30090"}]}
+       {"name": "Direct to node", "url": "http://10.17.17.6:30090"}]},
+    {"id": "overlay-public", "label": "Overlay · public subnet", "style": "public",
+     "paths": [
+       {"name": "Load balancer", "url": "http://10.200.200.13:8080"},
+       {"name": "Direct to node", "url": "http://10.200.200.19:30090"}]}
   ],
   "echo": ["http://10.203.203.1:18080/", "http://10.200.200.1:18080/"]
 }
