@@ -1,0 +1,13 @@
+# Copied from the holorouter (/etc/systemd/system/holo-vlan203.service) on 2026-10-20.
+[Unit]
+Description=VLAN 203 gateway 10.203.203.1/24 and DNS redirect
+Wants=network-online.target
+After=network-online.target iptables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /usr/local/bin/holo-vlan203.sh
+
+[Install]
+WantedBy=multi-user.target

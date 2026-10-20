@@ -1,0 +1,11 @@
+# Applied 2026-10-20 through the namespace endpoint (https://<vcfa>/proxy/k8s/namespaces/<urn>).
+# A VLAN-backed VPC has no private default network (namespace conditions
+# DefaultVmNetworkMissing / DefaultPodNetworkMissing), so VKS nodes need a Public subnet.
+apiVersion: crd.nsx.vmware.com/v1alpha1
+kind: SubnetSet
+metadata:
+  name: public
+  namespace: tepless-demo-4tvk7
+spec:
+  accessMode: Public
+  ipv4SubnetSize: 32

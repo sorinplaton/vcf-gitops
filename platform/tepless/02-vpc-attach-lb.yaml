@@ -1,0 +1,20 @@
+# Applied 2026-10-20. In a VLAN-backed region a new VPC still needs its attachment to the
+# transit gateway and its own NSX load balancer, or LoadBalancer services stay pending.
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: VPCAttachment
+metadata:
+  name: vpc-tepless-demo-p5gsf:default
+  namespace: default-project
+spec:
+  regionName: tepless
+  vpcConnectivityProfileName: default--tepless
+  vpcName: vpc-tepless-demo-p5gsf
+---
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: LoadBalancer
+metadata:
+  name: vpc-tepless-demo-p5gsf:default
+  namespace: default-project
+spec:
+  regionName: tepless
+  vpcName: vpc-tepless-demo-p5gsf

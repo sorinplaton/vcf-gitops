@@ -1,0 +1,23 @@
+# Applied 2026-10-20 -> namespace tepless-demo-4tvk7 (Created in 70 s).
+# Zone (with cpu/memory limit and reservation) and storage class are required here:
+# the namespace class "small" sets neither in this organization.
+apiVersion: infrastructure.cci.vmware.com/v1alpha3
+kind: SupervisorNamespace
+metadata:
+  generateName: tepless-demo-
+  namespace: default-project
+spec:
+  className: small
+  description: TEP-less VKS blog demo
+  regionName: tepless
+  vpcName: vpc-tepless-demo-p5gsf
+  classConfigOverrides:
+    storageClasses:
+    - name: cluster-tepless-vsan-storage-policy
+      limit: 200000Mi
+    zones:
+    - name: zone-11
+      cpuLimit: 20000M
+      cpuReservation: 0M
+      memoryLimit: 32000Mi
+      memoryReservation: 0Mi
