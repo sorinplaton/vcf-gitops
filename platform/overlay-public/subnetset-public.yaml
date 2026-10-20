@@ -1,0 +1,11 @@
+# Public SubnetSet in the OVERLAY namespace (east-1, VPC vpc-podinfo-demo-9r65t). Addresses come
+# from the VPC's external block (10.200.200.0/24), the same block as its load balancer VIPs and NAT.
+# Applied 2026-10-20 with the Supervisor admin context (Argo CD's edit role does not cover NSX CRDs).
+apiVersion: crd.nsx.vmware.com/v1alpha1
+kind: SubnetSet
+metadata:
+  name: public
+  namespace: podinfo-demo-dx643
+spec:
+  accessMode: Public
+  ipv4SubnetSize: 16
