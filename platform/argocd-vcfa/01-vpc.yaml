@@ -1,0 +1,12 @@
+# Argo CD as a VCF Service (VCF 9.1.1 tech preview): its own VPC in region east-1.
+# Applied as holo-east-admin@holo-east through the VCF Automation CCI API:
+#   kubectl --server https://auto-a.site-a.vcf.lab/cci/kubernetes --token <VCFA token> apply -f .
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: VPC
+metadata:
+  name: vpc-argocd-gitops
+  namespace: default-project
+spec:
+  description: Argo CD as a VCF Service (tech preview)
+  projectName: default-project
+  regionName: east-1

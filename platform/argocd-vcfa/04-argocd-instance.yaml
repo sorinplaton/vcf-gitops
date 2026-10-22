@@ -1,0 +1,13 @@
+# The tech-preview Argo CD instance. Applied through the VCF Automation CCI API (not the
+# Supervisor API): the CCI context is what makes it a "VCF Service" instance with VCF
+# Automation SSO (OIDC) and a VCF Automation platform service account.
+# After it is Ready: give status.serviceAccounts.platform the "ArgoCD Instance" role in the
+# VCF Automation Provider UI, then log in with `vcf argocd login <externalIP> --sso`.
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ArgoCD
+metadata:
+  name: argocd-gitops   # namespace: the generated argocd-gitops-xxxxx, set by apply.sh (-n)
+spec:
+  version: 3.4.4+vmware.1-vks.1
+  serverSideDiff: true        # required to manage VKS clusters
+  enableLoadBalancer: true
