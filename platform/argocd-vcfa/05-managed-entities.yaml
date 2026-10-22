@@ -1,0 +1,26 @@
+# Clusters the tech-preview Argo CD may deploy to (same Supervisor, so ManagedEntity, no tokens).
+# Same display names as the old instance, so the Applications' destination.name still match.
+# namespace: the generated argocd-gitops-xxxxx, set by apply.sh (-n).
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ManagedEntity
+metadata:
+  name: demo-vks-cluster
+spec:
+  clusterName: demo-vks-cluster
+  targetRef: {apiGroup: cluster.x-k8s.io, kind: Cluster, name: demo-vks-cluster, namespace: podinfo-demo-dx643}
+---
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ManagedEntity
+metadata:
+  name: overlay-public
+spec:
+  clusterName: overlay-public
+  targetRef: {apiGroup: cluster.x-k8s.io, kind: Cluster, name: overlay-public, namespace: podinfo-demo-dx643}
+---
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ManagedEntity
+metadata:
+  name: podinfo-demo
+spec:
+  clusterName: podinfo-demo
+  targetRef: {apiGroup: "", kind: Namespace, name: podinfo-demo-dx643}

@@ -1,0 +1,11 @@
+# Lets the Argo CD instance's Supervisor service account manage namespace podinfo-demo-dx643
+# (needed before the ManagedEntities in 05-managed-entities.yaml become Ready). Same as the
+# old argocd-k8s-sa-edit binding for argocd-demo-xxms8. Subject namespace = generated name.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-gitops-k8s-sa-edit
+  namespace: podinfo-demo-dx643
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: edit}
+subjects:
+- {kind: ServiceAccount, name: argocd-k8s-sa, namespace: argocd-gitops-9xsrd}
