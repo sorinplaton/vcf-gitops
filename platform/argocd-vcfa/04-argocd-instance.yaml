@@ -11,3 +11,10 @@ spec:
   version: 3.4.4+vmware.1-vks.1
   serverSideDiff: true        # required to manage VKS clusters
   enableLoadBalancer: true
+  # Argo CD RBAC (the instance ships with an empty policy, so SSO users can do nothing).
+  # Subjects are VCF Automation user ids (the OIDC "sub" claim).
+  rbac:
+    defaultPolicy: role:readonly
+    policy: |
+      g, 3559abb2-d34f-4d94-8d28-af2a8e747d6d, role:admin
+      g, b302ec9f-a709-42f7-aa44-09c0400766d9, role:admin
