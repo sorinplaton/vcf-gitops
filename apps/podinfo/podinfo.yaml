@@ -25,7 +25,7 @@ spec:
         command: ["./podinfo", "--port=9898", "--level=info"]
         env:                               # demo: change these in Git, Argo CD rolls them out
         - name: PODINFO_UI_COLOR
-          value: "#34577c"
+          value: "#2e7d32"         # green; podinfo default is #34577c (blue)
         - name: PODINFO_UI_MESSAGE
           value: "Deployed by Argo CD on VCF 9.1.1"
         ports:
