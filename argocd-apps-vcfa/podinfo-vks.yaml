@@ -1,0 +1,19 @@
+# podinfo on demo-vks-cluster, managed by the tech-preview Argo CD (argocd-gitops-9xsrd).
+# Created 2026-10-22 through the Argo CD API; adopted the running podinfo without redeploying.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo-vks
+  namespace: argocd-gitops-9xsrd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git
+    path: apps/podinfo
+    targetRevision: HEAD
+  destination:
+    name: demo-vks-cluster
+    namespace: podinfo
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
