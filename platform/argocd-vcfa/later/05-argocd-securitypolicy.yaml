@@ -1,0 +1,190 @@
+# NSX distributed firewall for the Argo CD Supervisor Service pods in argocd-gitops.
+# Realized by the NSX operator as DFW rules inside VPC vpc-argocd-demo-isedcb (crd.nsx.vmware.com SecurityPolicy).
+# Lower priority number = evaluated first. "argocd-allow" (100) is matched before "argocd-default-deny" (900).
+#
+# Traffic matrix (Argo CD 3.4 defaults, verified against the running services):
+#   argocd-server        listens 8080 (HTTP+HTTPS behind the LB; svc 80/443 -> 8080), 8083 metrics
+#   argocd-repo-server   listens 8081, 8084 metrics
+#   argocd-redis         listens 6379
+#   application-controller  8082 metrics only (no inbound needed)
+#   VPC load balancer talks to pods from the VPC services subnet 100.64.32.0/24 (VPC service profile default--east-1)
+#   Cluster DNS ClusterIP 10.96.0.10, Supervisor API ClusterIP 10.96.0.1:443  <- VERIFY with: kubectl get svc -n kube-system kube-dns ; kubectl get svc kubernetes
+#   Target VKS cluster API endpoints (future Argo deploy targets) come from external block 10.200.200.0/24 :6443
+---
+apiVersion: crd.nsx.vmware.com/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: argocd-allow
+  namespace: argocd-gitops
+spec:
+  priority: 100
+  appliedTo:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/part-of: argocd
+  rules:
+    # ---------- inbound ----------
+    - name: in-ui-api-from-vpc-lb
+      action: Allow
+      direction: In
+      appliedTo:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-server
+      sources:
+        - ipBlocks:
+            - cidr: 100.64.32.0/24        # VPC load balancer (services subnet) -> pool member
+      ports:
+        - protocol: TCP
+          port: 8080
+    - name: in-repo-server-from-argocd
+      action: Allow
+      direction: In
+      appliedTo:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-repo-server
+      sources:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [argocd-server, argocd-application-controller]
+      ports:
+        - protocol: TCP
+          port: 8081
+    - name: in-redis-from-argocd
+      action: Allow
+      direction: In
+      appliedTo:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-redis
+      sources:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [argocd-server, argocd-application-controller, argocd-repo-server]
+      ports:
+        - protocol: TCP
+          port: 6379
+    # ---------- outbound ----------
+    - name: out-dns
+      action: Allow
+      direction: Out
+      destinations:
+        - ipBlocks:
+            - cidr: 10.96.0.10/32          # cluster DNS (ClusterIP, distributed LB)
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - name: out-to-repo-server
+      action: Allow
+      direction: Out
+      appliedTo:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [argocd-server, argocd-application-controller]
+      destinations:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-repo-server
+      ports:
+        - protocol: TCP
+          port: 8081
+    - name: out-to-redis
+      action: Allow
+      direction: Out
+      appliedTo:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [argocd-server, argocd-application-controller, argocd-repo-server]
+      destinations:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - name: out-supervisor-api
+      action: Allow
+      direction: Out
+      appliedTo:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [argocd-server, argocd-application-controller, argocd-redis-secret-init]
+      destinations:
+        - ipBlocks:
+            - cidr: 10.96.0.1/32           # kubernetes.default.svc
+      ports:
+        - protocol: TCP
+          port: 443
+    - name: out-target-cluster-apis
+      action: Allow
+      direction: Out
+      appliedTo:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [argocd-server, argocd-application-controller]
+      destinations:
+        - ipBlocks:
+            - cidr: 10.200.200.0/24        # VKS cluster API VIPs allocated from the holo-east external block
+            - cidr: 10.203.203.0/24        # TEP-less region (VLAN 203): demo-git API VIP 10.203.203.5 (added 2026-10-20)
+      ports:
+        - protocol: TCP
+          port: 6443
+    - name: out-git-and-helm-https
+      action: Allow
+      direction: Out
+      appliedTo:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-repo-server
+      destinations:
+        - ipBlocks:
+            - cidr: 0.0.0.0/0              # tighten to your Git/Helm/OCI hosts once known
+      ports:
+        - protocol: TCP
+          port: 443
+    # Uncomment if repos are cloned over SSH
+    # - name: out-git-ssh
+    #   action: Allow
+    #   direction: Out
+    #   appliedTo:
+    #     - podSelector:
+    #         matchLabels:
+    #           app.kubernetes.io/name: argocd-repo-server
+    #   destinations:
+    #     - ipBlocks:
+    #         - cidr: 0.0.0.0/0
+    #   ports:
+    #     - protocol: TCP
+    #       port: 22
+---
+apiVersion: crd.nsx.vmware.com/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: argocd-default-deny
+  namespace: argocd-gitops
+spec:
+  priority: 900
+  appliedTo:
+    - podSelector: {}                      # every pod in the namespace
+  rules:
+    - name: deny-all-in
+      action: Drop
+      direction: In
+    - name: deny-all-out
+      action: Drop
+      direction: Out

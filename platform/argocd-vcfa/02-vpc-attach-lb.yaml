@@ -1,0 +1,20 @@
+# Transit-gateway attachment + NSX load balancer for the VPC. Without the load balancer the
+# argocd-server LoadBalancer service stays pending (lesson from 2026-09-29).
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: VPCAttachment
+metadata:
+  name: vpc-argocd-gitops:default
+  namespace: default-project
+spec:
+  regionName: east-1
+  vpcConnectivityProfileName: default--east-1
+  vpcName: vpc-argocd-gitops
+---
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: LoadBalancer
+metadata:
+  name: vpc-argocd-gitops:default
+  namespace: default-project
+spec:
+  regionName: east-1
+  vpcName: vpc-argocd-gitops

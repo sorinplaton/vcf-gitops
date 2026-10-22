@@ -1,0 +1,22 @@
+# Hosting namespace for the tech-preview Argo CD instance. Same class and limits as the
+# previous Argo CD namespace (argocd-demo-xxms8, Supervisor-mode instance, removed 2026-10-21).
+apiVersion: infrastructure.cci.vmware.com/v1alpha3
+kind: SupervisorNamespace
+metadata:
+  name: argocd-gitops
+  namespace: default-project
+spec:
+  className: medium
+  description: Argo CD as a VCF Service (tech preview)
+  regionName: east-1
+  vpcName: vpc-argocd-gitops
+  classConfigOverrides:
+    storageClasses:
+    - name: cluster-wld01-01a-vsan-storage-policy
+      limit: 200000Mi
+    zones:
+    - name: z-wld-a
+      cpuLimit: 20000M
+      cpuReservation: 0M
+      memoryLimit: 20000Mi
+      memoryReservation: 0Mi
