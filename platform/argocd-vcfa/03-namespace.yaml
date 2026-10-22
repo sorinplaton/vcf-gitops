@@ -1,9 +1,11 @@
 # Hosting namespace for the tech-preview Argo CD instance. Same class and limits as the
 # previous Argo CD namespace (argocd-demo-xxms8, Supervisor-mode instance, removed 2026-10-21).
+# VCF Automation only accepts generateName here (the real name gets a random suffix), so this
+# file is created once with `kubectl create`, not applied; apply.sh skips it if one exists.
 apiVersion: infrastructure.cci.vmware.com/v1alpha3
 kind: SupervisorNamespace
 metadata:
-  name: argocd-gitops
+  generateName: argocd-gitops-
   namespace: default-project
 spec:
   className: medium

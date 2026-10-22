@@ -15,7 +15,7 @@ apiVersion: crd.nsx.vmware.com/v1alpha1
 kind: SecurityPolicy
 metadata:
   name: argocd-allow
-  namespace: argocd-gitops
+  namespace: argocd-gitops-CHANGEME   # the generated namespace name
 spec:
   priority: 100
   appliedTo:
@@ -176,7 +176,7 @@ apiVersion: crd.nsx.vmware.com/v1alpha1
 kind: SecurityPolicy
 metadata:
   name: argocd-default-deny
-  namespace: argocd-gitops
+  namespace: argocd-gitops-CHANGEME   # the generated namespace name
 spec:
   priority: 900
   appliedTo:

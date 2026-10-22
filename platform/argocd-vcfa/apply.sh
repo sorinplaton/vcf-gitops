@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 
 VCFA=https://auto-a.site-a.vcf.lab
 USER_ORG=holo-east-admin@holo-east
-NS=argocd-gitops
+NS_PREFIX=argocd-gitops-   # SupervisorNamespace gets a generated suffix
 VPC=vpc-argocd-gitops
 
 pw() {
@@ -28,6 +28,10 @@ TOKEN=$(curl -sk -m 30 -D - -o /dev/null -u "$USER_ORG:$(pw)" -X POST \
   awk -F': ' 'tolower($1)=="x-vmware-vcloud-access-token"{print $2}' | tr -d '\r')
 [ -n "$TOKEN" ] || { echo "VCF Automation login failed"; exit 1; }
 cci() { kubectl --server "$VCFA/cci/kubernetes" --insecure-skip-tls-verify --token "$TOKEN" --request-timeout=60s -n default-project "$@"; }
+
+ns_name() {  # the generated namespace name, empty if none yet
+  cci get supervisornamespace -o name 2>/dev/null | sed 's|.*/||' | grep "^$NS_PREFIX" | head -1 || true
+}
 
 wait_for() {  # wait_for <description> <command that prints something non-empty when done> [tries]
   local what=$1 cmd=$2 tries=${3:-60}
@@ -46,15 +50,21 @@ network() {
   cci apply -f 02-vpc-attach-lb.yaml
   wait_for "attachment realized" "cci get vpcattachment $VPC:default --no-headers | grep -w Realized"
   wait_for "load balancer realized" "cci get loadbalancer $VPC:default --no-headers | grep -w Realized"
-  echo "== 03 namespace $NS"
-  cci apply -f 03-namespace.yaml
-  wait_for "namespace Created" "cci get supervisornamespace $NS --no-headers | grep -w Created" 90
+  local ns; ns=$(ns_name)
+  if [ -z "$ns" ]; then
+    echo "== 03 namespace ${NS_PREFIX}*"
+    ns=$(cci create -f 03-namespace.yaml -o jsonpath='{.metadata.name}')
+  fi
+  echo "== 03 namespace $ns"
+  wait_for "namespace Created" "cci get supervisornamespace $ns --no-headers | grep -w Created" 90
 }
 
 instance() {
-  local ep
-  ep=$(cci get supervisornamespace "$NS" -o jsonpath='{.status.namespaceEndpointURL}')
-  [ -n "$ep" ] || { echo "namespace $NS not ready; run ./apply.sh network first"; exit 1; }
+  local ep NS
+  NS=$(ns_name)
+  [ -n "$NS" ] && ep=$(cci get supervisornamespace "$NS" -o jsonpath='{.status.namespaceEndpointURL}')
+  [ -n "${ep:-}" ] || { echo "namespace ${NS_PREFIX}* not ready; run ./apply.sh network first"; exit 1; }
+  echo "== namespace $NS"
   nsk() { kubectl --server "$ep" --insecure-skip-tls-verify --token "$TOKEN" --request-timeout=60s -n "$NS" "$@"; }
   echo "== supported Argo CD versions"
   nsk get argocdversion argocd-supported-versions -o jsonpath='{.spec}' 2>/dev/null || \
@@ -68,7 +78,8 @@ instance() {
 
 status() {
   cci get vpc,vpcattachment,loadbalancer --no-headers 2>/dev/null | grep "$VPC" || echo "no VPC yet"
-  cci get supervisornamespace "$NS" 2>/dev/null || echo "no namespace yet"
+  local ns; ns=$(ns_name)
+  [ -n "$ns" ] && cci get supervisornamespace "$ns" || echo "no namespace yet"
 }
 
 case "${1:-status}" in

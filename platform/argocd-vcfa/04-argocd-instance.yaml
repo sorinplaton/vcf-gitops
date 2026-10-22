@@ -6,8 +6,7 @@
 apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
 kind: ArgoCD
 metadata:
-  name: argocd-gitops
-  namespace: argocd-gitops
+  name: argocd-gitops   # namespace: the generated argocd-gitops-xxxxx, set by apply.sh (-n)
 spec:
   version: 3.4.4+vmware.1-vks.1
   serverSideDiff: true        # required to manage VKS clusters

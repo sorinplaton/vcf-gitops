@@ -7,7 +7,7 @@ backup on the jump host in `~/argocd-backup-20261021/`). Org `holo-east`, region
 |---|---|---|
 | 01-vpc.yaml | VPC `vpc-argocd-gitops` | VCF Automation CCI API |
 | 02-vpc-attach-lb.yaml | transit-gateway attachment + NSX load balancer | VCF Automation CCI API |
-| 03-namespace.yaml | Supervisor namespace `argocd-gitops` (class medium) | VCF Automation CCI API |
+| 03-namespace.yaml | Supervisor namespace `argocd-gitops-<suffix>` (class medium; generateName, created once) | VCF Automation CCI API |
 | 04-argocd-instance.yaml | the `ArgoCD` instance `argocd-gitops` | the namespace endpoint (`status.namespaceEndpointURL`) |
 | later/05-argocd-securitypolicy.yaml | DFW allow + default-deny, copied from the old namespace | Supervisor API, only after SSO works |
 
