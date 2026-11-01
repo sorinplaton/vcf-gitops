@@ -1,0 +1,25 @@
+# Create ONCE in the mon-mgmt cluster, never commit the real values:
+#   kubectl --context mon-mgmt -n monitoring create secret generic vcenter-exporter-env \
+#     --from-literal=VSPHERE_MGMT_HOST=vc-mgmt-a.site-a.vcf.lab  --from-literal=VSPHERE_MGMT_USER=monitor@vsphere.local  --from-literal=VSPHERE_MGMT_PASSWORD=... --from-literal=VSPHERE_MGMT_IGNORE_SSL=True \
+#     --from-literal=VSPHERE_WLD01_HOST=vc-wld01-a.site-a.vcf.lab --from-literal=VSPHERE_WLD01_USER=monitor@vsphere.local --from-literal=VSPHERE_WLD01_PASSWORD=... --from-literal=VSPHERE_WLD01_IGNORE_SSL=True \
+#     --from-literal=VSPHERE_OUTER_HOST=10.0.6.21                --from-literal=VSPHERE_OUTER_USER=monitor@vsphere.local --from-literal=VSPHERE_OUTER_PASSWORD=... --from-literal=VSPHERE_OUTER_IGNORE_SSL=True
+# A read-only vCenter role is enough for vmware_exporter (it only reads performance counters and inventory).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vcenter-exporter-env
+  namespace: monitoring
+type: Opaque
+stringData:
+  VSPHERE_MGMT_HOST: vc-mgmt-a.site-a.vcf.lab
+  VSPHERE_MGMT_USER: monitor@vsphere.local
+  VSPHERE_MGMT_PASSWORD: "<password>"
+  VSPHERE_MGMT_IGNORE_SSL: "True"
+  VSPHERE_WLD01_HOST: vc-wld01-a.site-a.vcf.lab
+  VSPHERE_WLD01_USER: monitor@vsphere.local
+  VSPHERE_WLD01_PASSWORD: "<password>"
+  VSPHERE_WLD01_IGNORE_SSL: "True"
+  VSPHERE_OUTER_HOST: 10.0.6.21
+  VSPHERE_OUTER_USER: monitor@vsphere.local
+  VSPHERE_OUTER_PASSWORD: "<password>"
+  VSPHERE_OUTER_IGNORE_SSL: "True"

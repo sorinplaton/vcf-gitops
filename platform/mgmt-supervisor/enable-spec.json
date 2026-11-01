@@ -1,0 +1,97 @@
+{
+ "zone": "zone-mgmt-a",
+ "name": "supervisor-mgmt-a",
+ "control_plane": {
+  "network": {
+   "backing": {
+    "backing": "NETWORK",
+    "network": "dvportgroup-25"
+   },
+   "services": {
+    "dns": {
+     "servers": [
+      "10.1.1.1"
+     ],
+     "search_domains": [
+      "site-a.vcf.lab"
+     ]
+    },
+    "ntp": {
+     "servers": [
+      "10.1.1.1"
+     ]
+    }
+   },
+   "ip_management": {
+    "dhcp_enabled": false,
+    "gateway_address": "10.1.1.1/24",
+    "ip_assignments": [
+     {
+      "assignee": "NODE",
+      "ranges": [
+       {
+        "address": "10.1.1.85",
+        "count": 5
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "size": "SMALL",
+  "count": 1,
+  "storage_policy": "890c69a1-f5cb-44fe-8dbc-39d05cdf6213"
+ },
+ "workloads": {
+  "network": {
+   "network_type": "NSX_VPC",
+   "nsx_vpc": {
+    "nsx_project": "/orgs/default/projects/default",
+    "vpc_connectivity_profile": "/orgs/default/projects/default/vpc-connectivity-profiles/default",
+    "default_private_cidrs": [
+     {
+      "address": "172.16.202.0",
+      "prefix": 24
+     }
+    ]
+   },
+   "services": {
+    "dns": {
+     "servers": [
+      "10.1.1.1"
+     ],
+     "search_domains": []
+    },
+    "ntp": {
+     "servers": [
+      "10.1.1.1"
+     ]
+    }
+   },
+   "ip_management": {
+    "dhcp_enabled": false,
+    "ip_assignments": [
+     {
+      "assignee": "SERVICE",
+      "ranges": [
+       {
+        "address": "10.96.0.0",
+        "count": 512
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "edge": {
+   "provider": "NSX_VPC"
+  },
+  "images": {
+   "kubernetes_content_library": "22cfea10-7f27-4b02-9613-eeb70f553cf3"
+  },
+  "storage": {
+   "ephemeral_storage_policy": "890c69a1-f5cb-44fe-8dbc-39d05cdf6213",
+   "image_storage_policy": "890c69a1-f5cb-44fe-8dbc-39d05cdf6213"
+  }
+ }
+}

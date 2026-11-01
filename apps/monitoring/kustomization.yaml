@@ -1,0 +1,19 @@
+# Exporters + dashboards for the lab, deployed by Argo CD into namespace `monitoring` of the
+# mon-mgmt VKS cluster next to kube-prometheus-stack (argocd-apps-mgmt/monitoring-stack.yaml).
+# Secrets are NOT here: create them once from secrets.example/ (vCenter and iDRAC credentials).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+- vmware-exporter.yaml
+- idrac-exporter.yaml
+- servicemonitors.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"      # picked up by the Grafana sidecar of kube-prometheus-stack
+configMapGenerator:
+- name: dashboard-lab-power-thermal
+  files: [dashboards/lab-power-thermal.json]
+- name: dashboard-lab-nested-hosts
+  files: [dashboards/lab-nested-hosts.json]

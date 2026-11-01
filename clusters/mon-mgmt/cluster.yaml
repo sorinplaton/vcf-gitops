@@ -1,0 +1,47 @@
+# VKS cluster for Prometheus + Grafana in the management domain (org platform-ops, region mgmt-a).
+# Created by the tech-preview Argo CD instance (argocd-apps-mgmt/mon-mgmt-cluster.yaml) into the
+# platform-ops Supervisor namespace. 1 control plane + 2 workers: the monitoring stack needs two
+# workers so Prometheus and Grafana survive one node reboot; about 20 GB in total.
+# version: take it from `kubectl get kr -n <namespace>` once the VKS-mgmt library has synced
+# (on-demand library: the first node waits for the OVA download). Pin os-name AND os-version:
+# v1.35+ releases ship Photon 5, Ubuntu 22.04 and 24.04 images.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: mon-mgmt
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: [100.96.0.0/11]
+    services:
+      cidrBlocks: [100.64.0.0/13]
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: builtin-generic-v3.7.0
+      namespace: vmware-system-vks-public
+    version: v1.35.6+vmware.2-vkr.3
+    controlPlane:
+      replicas: 1
+      metadata:
+        annotations:
+          run.tanzu.vmware.com/resolve-os-image: os-name=photon,os-version=5.0
+    workers:
+      machineDeployments:
+      - class: node-pool
+        name: np-1
+        replicas: 2
+        metadata:
+          annotations:
+            run.tanzu.vmware.com/resolve-os-image: os-name=photon,os-version=5.0
+        variables:
+          overrides:
+          - name: vmClass
+            value: best-effort-medium
+    variables:
+    - name: vmClass
+      value: best-effort-small
+    - name: storageClass
+      value: cluster-mgmt-01a-vsan-storage-policy

@@ -1,0 +1,23 @@
+# Hosting namespace for the Argo CD instance AND the mon-mgmt VKS cluster (1 small CP + 2 medium
+# workers = 20 GB of VMs, plus the Argo CD pods). VCF Automation only accepts generateName here,
+# so this file is created once with `kubectl create`; apply.sh skips it if one exists.
+apiVersion: infrastructure.cci.vmware.com/v1alpha3
+kind: SupervisorNamespace
+metadata:
+  generateName: platform-ops-
+  namespace: default-project
+spec:
+  className: medium
+  description: platform-ops - Argo CD (VCF Service) and the mon-mgmt monitoring cluster
+  regionName: mgmt-a
+  vpcName: vpc-platform-ops
+  classConfigOverrides:
+    storageClasses:
+    - name: cluster-mgmt-01a-vsan-storage-policy
+      limit: 300000Mi
+    zones:
+    - name: zone-mgmt-a
+      cpuLimit: 30000M
+      cpuReservation: 0M
+      memoryLimit: 40000Mi
+      memoryReservation: 0Mi

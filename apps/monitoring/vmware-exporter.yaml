@@ -1,0 +1,55 @@
+# vmware_exporter (pryorda): one pod, three vCenter "sections" selected with ?section=<name>.
+#   mgmt  = vc-mgmt-a   (management domain: hosts, VMs, vSAN datastore)
+#   wld01 = vc-wld01-a  (workload domain)
+#   outer = 10.0.6.21   (the physical Dells and the nested ESXi VMs: CPU ready, memory)
+# Credentials come from Secret vcenter-exporter-env (secrets.example/vcenter-exporter-env.yaml):
+# VSPHERE_<SECTION>_HOST / _USER / _PASSWORD / _IGNORE_SSL. Image pinned to the last release.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vmware-exporter
+  labels: {app: vmware-exporter}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: vmware-exporter}
+  template:
+    metadata:
+      labels: {app: vmware-exporter}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: vmware-exporter
+        image: pryorda/vmware_exporter:v0.18.4
+        ports:
+        - {name: metrics, containerPort: 9272}
+        envFrom:
+        - secretRef: {name: vcenter-exporter-env}
+        env:
+        # snapshots and guest details are slow on 60+ VMs and not needed on the dashboards
+        - {name: VSPHERE_MGMT_COLLECT_SNAPSHOTS, value: "False"}
+        - {name: VSPHERE_WLD01_COLLECT_SNAPSHOTS, value: "False"}
+        - {name: VSPHERE_OUTER_COLLECT_SNAPSHOTS, value: "False"}
+        - {name: VSPHERE_OUTER_COLLECT_VMGUESTS, value: "False"}
+        resources:
+          requests: {cpu: 100m, memory: 256Mi}
+          limits: {memory: 1Gi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {drop: ["ALL"]}
+        readinessProbe:
+          httpGet: {path: /healthz, port: metrics}
+          initialDelaySeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmware-exporter
+  labels: {app: vmware-exporter}
+spec:
+  selector: {app: vmware-exporter}
+  ports:
+  - {name: metrics, port: 9272, targetPort: metrics}

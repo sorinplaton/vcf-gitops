@@ -1,0 +1,15 @@
+# /etc/systemd/system/holo-vlan204.service on the holorouter (copy of holo-vlan203.service).
+# Install: cp holo-vlan204.sh /usr/local/bin/ && chmod +x /usr/local/bin/holo-vlan204.sh
+#          cp holo-vlan204.service /etc/systemd/system/ && systemctl enable --now holo-vlan204
+[Unit]
+Description=VLAN 204 gateway (10.204.204.1/24) and DNS redirect for the platform-ops external block
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /usr/local/bin/holo-vlan204.sh
+
+[Install]
+WantedBy=multi-user.target

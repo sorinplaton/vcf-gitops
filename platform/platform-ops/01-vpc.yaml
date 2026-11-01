@@ -1,0 +1,11 @@
+# Argo CD + monitoring for the platform-ops org: its own VPC in region mgmt-a (management domain).
+# Applied as platform-admin@platform-ops through the VCF Automation CCI API (apply.sh network).
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: VPC
+metadata:
+  name: vpc-platform-ops
+  namespace: default-project
+spec:
+  description: platform-ops GitOps + monitoring (Argo CD as a VCF Service, tech preview)
+  projectName: default-project
+  regionName: mgmt-a

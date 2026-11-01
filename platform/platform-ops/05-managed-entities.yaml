@@ -1,0 +1,19 @@
+# Targets the platform-ops Argo CD may deploy to (same Supervisor, so ManagedEntity, no tokens).
+# - platform-ops: the hosting namespace itself; Argo CD creates the mon-mgmt Cluster object there.
+# - mon-mgmt: the VKS cluster, once it exists (re-apply after the first cluster sync if Failed).
+# apply.sh substitutes PLATFORM_NS with the generated namespace name.
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ManagedEntity
+metadata:
+  name: platform-ops
+spec:
+  clusterName: platform-ops
+  targetRef: {apiGroup: "", kind: Namespace, name: PLATFORM_NS}
+---
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ManagedEntity
+metadata:
+  name: mon-mgmt
+spec:
+  clusterName: mon-mgmt
+  targetRef: {apiGroup: cluster.x-k8s.io, kind: Cluster, name: mon-mgmt, namespace: PLATFORM_NS}

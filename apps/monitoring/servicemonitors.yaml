@@ -1,0 +1,55 @@
+# Scrape definitions for the Prometheus of kube-prometheus-stack (values set
+# serviceMonitorSelectorNilUsesHelmValues=false, so any ServiceMonitor in the cluster is picked up).
+# vCenter collections are slow (the outer vCenter alone has 30+ VMs with full stats), hence 2 min
+# interval and a 90 s timeout; iDRAC Redfish answers in a few seconds.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vmware-exporter
+  labels: {app: vmware-exporter}
+spec:
+  selector:
+    matchLabels: {app: vmware-exporter}
+  endpoints:
+  - port: metrics
+    interval: 120s
+    scrapeTimeout: 90s
+    params: {section: [mgmt]}
+    relabelings:
+    - {targetLabel: vcenter, replacement: vc-mgmt-a}
+  - port: metrics
+    interval: 120s
+    scrapeTimeout: 90s
+    params: {section: [wld01]}
+    relabelings:
+    - {targetLabel: vcenter, replacement: vc-wld01-a}
+  - port: metrics
+    interval: 120s
+    scrapeTimeout: 90s
+    params: {section: [outer]}
+    relabelings:
+    - {targetLabel: vcenter, replacement: outer-10.0.6.21}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: idrac-exporter
+  labels: {app: idrac-exporter}
+spec:
+  selector:
+    matchLabels: {app: idrac-exporter}
+  endpoints:
+  - port: metrics
+    interval: 60s
+    scrapeTimeout: 30s
+    params: {target: [10.0.4.41]}
+    relabelings:
+    - {targetLabel: server, replacement: r740}
+    - {targetLabel: instance, replacement: 10.0.4.41}
+  - port: metrics
+    interval: 60s
+    scrapeTimeout: 30s
+    params: {target: [10.0.7.244]}
+    relabelings:
+    - {targetLabel: server, replacement: r730xd}
+    - {targetLabel: instance, replacement: 10.0.7.244}

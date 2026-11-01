@@ -1,0 +1,19 @@
+# The monitoring VKS cluster, created from Git by the platform-ops Argo CD (argocd-platform).
+# Destination "platform-ops" = ManagedEntity of the hosting Supervisor namespace. Manual sync, no
+# prune: a prune would delete the three VMs. namespace: the generated platform-ops-<suffix>.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mon-mgmt-cluster
+  namespace: PLATFORM_NS
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git
+    path: clusters/mon-mgmt
+    targetRevision: HEAD
+  destination:
+    name: platform-ops
+    namespace: PLATFORM_NS
+  syncPolicy:
+    syncOptions: [ServerSideApply=true]

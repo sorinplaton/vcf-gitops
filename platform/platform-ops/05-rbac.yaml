@@ -1,0 +1,12 @@
+# Lets the instance's Supervisor service account manage its own hosting namespace, so the
+# Namespace ManagedEntity (05-managed-entities.yaml) becomes Ready and Argo CD can create the
+# mon-mgmt Cluster object there. Both namespace fields = the generated platform-ops-<suffix>
+# (apply.sh substitutes PLATFORM_NS).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-platform-k8s-sa-edit
+  namespace: PLATFORM_NS
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: edit}
+subjects:
+- {kind: ServiceAccount, name: argocd-k8s-sa, namespace: PLATFORM_NS}

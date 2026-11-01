@@ -1,0 +1,77 @@
+# kube-prometheus-stack (Prometheus Operator, Prometheus, Alertmanager, Grafana, node-exporter,
+# kube-state-metrics) on the mon-mgmt VKS cluster. Source is the Helm repository, not this repo;
+# the values are the only lab-specific part. Grafana gets an NSX load-balancer VIP from the
+# platform-ops VPC (10.204.204.0/24). Admin password: Secret grafana-admin (keys admin-user,
+# admin-password) created once in namespace monitoring, not in Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-stack
+  namespace: PLATFORM_NS
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.17.0
+    helm:
+      releaseName: kps
+      valuesObject:
+        fullnameOverride: kps
+        # VKS control-plane components are not reachable from pods on their default ports; keep
+        # the scrape targets green instead of permanently down.
+        kubeEtcd: {enabled: false}
+        kubeControllerManager: {enabled: false}
+        kubeScheduler: {enabled: false}
+        kubeProxy: {enabled: false}
+        alertmanager:
+          alertmanagerSpec:
+            resources: {requests: {cpu: 20m, memory: 64Mi}}
+        prometheus:
+          prometheusSpec:
+            retention: 15d
+            # pick up every ServiceMonitor/PodMonitor in the cluster (apps/monitoring), not only the chart's
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            resources: {requests: {cpu: 200m, memory: 1Gi}, limits: {memory: 2Gi}}
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: cluster-mgmt-01a-vsan-storage-policy
+                  accessModes: [ReadWriteOnce]
+                  resources: {requests: {storage: 30Gi}}
+        grafana:
+          admin: {existingSecret: grafana-admin, userKey: admin-user, passwordKey: admin-password}
+          service: {type: LoadBalancer}
+          persistence:
+            enabled: true
+            storageClassName: cluster-mgmt-01a-vsan-storage-policy
+            size: 5Gi
+          sidecar:
+            dashboards: {enabled: true, label: grafana_dashboard, labelValue: "1", searchNamespace: ALL}
+          # community dashboards for vmware_exporter, imported from grafana.com at start-up
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+              - name: community
+                orgId: 1
+                folder: VMware
+                type: file
+                disableDeletion: false
+                editable: true
+                options: {path: /var/lib/grafana/dashboards/community}
+          dashboards:
+            community:
+              vmware-overview: {gnetId: 18017, revision: 1, datasource: Prometheus}
+              vmware-host: {gnetId: 18018, revision: 1, datasource: Prometheus}
+              vmware-vm: {gnetId: 18019, revision: 1, datasource: Prometheus}
+  destination:
+    name: mon-mgmt
+    namespace: monitoring
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry:
+      limit: 5
+      backoff: {duration: 30s, factor: 2, maxDuration: 5m}

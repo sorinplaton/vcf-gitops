@@ -1,0 +1,20 @@
+# Transit-gateway attachment + NSX load balancer for the VPC. Without the load balancer every
+# LoadBalancer Service (argocd-server, Grafana, the VKS cluster API) stays pending.
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: VPCAttachment
+metadata:
+  name: vpc-platform-ops:default
+  namespace: default-project
+spec:
+  regionName: mgmt-a
+  vpcConnectivityProfileName: default--mgmt-a
+  vpcName: vpc-platform-ops
+---
+apiVersion: vpc.nsx.vmware.com/v1alpha1
+kind: LoadBalancer
+metadata:
+  name: vpc-platform-ops:default
+  namespace: default-project
+spec:
+  regionName: mgmt-a
+  vpcName: vpc-platform-ops

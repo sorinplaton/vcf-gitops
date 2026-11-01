@@ -1,0 +1,48 @@
+# idrac_exporter (mrlhansen): Redfish → Prometheus for the two Dells. One pod; the iDRAC to read
+# is chosen per scrape with ?target=<idrac ip> (see servicemonitors.yaml). Credentials and the
+# metric groups live in Secret idrac-exporter-config (secrets.example/idrac-exporter-config.yaml),
+# mounted as /etc/prometheus/idrac.yml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: idrac-exporter
+  labels: {app: idrac-exporter}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: idrac-exporter}
+  template:
+    metadata:
+      labels: {app: idrac-exporter}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: idrac-exporter
+        image: ghcr.io/mrlhansen/idrac_exporter:v2.6.3
+        ports:
+        - {name: metrics, containerPort: 9348}
+        volumeMounts:
+        - {name: config, mountPath: /etc/prometheus, readOnly: true}
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {memory: 256Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: ["ALL"]}
+      volumes:
+      - name: config
+        secret: {secretName: idrac-exporter-config}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: idrac-exporter
+  labels: {app: idrac-exporter}
+spec:
+  selector: {app: idrac-exporter}
+  ports:
+  - {name: metrics, port: 9348, targetPort: metrics}

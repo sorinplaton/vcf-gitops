@@ -1,0 +1,22 @@
+# vCenter + iDRAC exporters, ServiceMonitors and the lab dashboards (apps/monitoring) on mon-mgmt.
+# Needs monitoring-stack first (ServiceMonitor CRD, Grafana sidecar); the retry covers the gap.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-exporters
+  namespace: PLATFORM_NS
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sorinplaton/vcf-gitops.git
+    path: apps/monitoring
+    targetRevision: HEAD
+  destination:
+    name: mon-mgmt
+    namespace: monitoring
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true]
+    retry:
+      limit: 5
+      backoff: {duration: 30s, factor: 2, maxDuration: 5m}

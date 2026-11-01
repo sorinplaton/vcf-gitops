@@ -1,0 +1,20 @@
+# The tech-preview Argo CD instance of the platform-ops org. Applied through the namespace
+# endpoint of VCF Automation (apply.sh instance), which is what makes it a "VCF Service" instance
+# with VCF Automation SSO and a platform service account.
+# After it is Ready: give status.serviceAccounts.platform the "ArgoCD Instance" role in the
+# platform-ops org, then `vcf argocd login <externalIP> --sso`.
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: ArgoCD
+metadata:
+  name: argocd-platform   # namespace: the generated platform-ops-xxxxx, set by apply.sh (-n)
+spec:
+  version: 3.4.4+vmware.1-vks.1   # check `kubectl get argocdversion argocd-supported-versions`
+  serverSideDiff: true            # required to manage VKS clusters
+  enableLoadBalancer: true
+  # Argo CD RBAC: the instance ships with an empty policy. Subjects are VCF Automation user ids
+  # (OIDC "sub"); apply.sh prints the id of platform-admin after login, paste it here.
+  rbac:
+    defaultPolicy: role:readonly
+    policy: |
+      g, 3559abb2-d34f-4d94-8d28-af2a8e747d6d, role:admin   # admin@System
+      g, PLATFORM_ADMIN_USER_ID, role:admin                 # platform-admin@platform-ops
