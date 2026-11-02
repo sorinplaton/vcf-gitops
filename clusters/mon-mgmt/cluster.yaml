@@ -45,3 +45,10 @@ spec:
       value: best-effort-small
     - name: storageClass
       value: cluster-mgmt-01a-vsan-storage-policy
+    # VKS node firewall (machine-agent nftables) only opens 22/179/10250/10349-10351/NodePorts by
+    # default; Prometheus scrapes node-exporter on the node IPs (VPC private block 172.24.0.0/23).
+    - name: node
+      value:
+        firewall:
+          inboundRules:
+          - {protocol: tcp, fromPort: 9100, toPort: 9100, source: 172.24.0.0/23}
