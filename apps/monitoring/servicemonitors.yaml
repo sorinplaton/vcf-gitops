@@ -47,8 +47,8 @@ spec:
     - {targetLabel: server, replacement: r740}
     - {targetLabel: instance, replacement: 10.0.4.41}
   - port: metrics
-    interval: 60s
-    scrapeTimeout: 30s
+    interval: 120s          # iDRAC8 (R730xd) Redfish is slow: the first scrape after a restart takes over 30 s
+    scrapeTimeout: 90s
     params: {target: [10.0.7.244]}
     relabelings:
     - {targetLabel: server, replacement: r730xd}
