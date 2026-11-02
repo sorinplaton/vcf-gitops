@@ -27,7 +27,7 @@ spec:
       replicas: 1
       metadata:
         annotations:
-          run.tanzu.vmware.com/resolve-os-image: os-name=photon,os-version=5.0
+          run.tanzu.vmware.com/resolve-os-image: os-name=photon,os-version=5
     workers:
       machineDeployments:
       - class: node-pool
@@ -35,7 +35,7 @@ spec:
         replicas: 2
         metadata:
           annotations:
-            run.tanzu.vmware.com/resolve-os-image: os-name=photon,os-version=5.0
+            run.tanzu.vmware.com/resolve-os-image: os-name=photon,os-version=5
         variables:
           overrides:
           - name: vmClass
