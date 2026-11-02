@@ -17,11 +17,14 @@ stringData:
         username: monitor
         password: "<password>"
     metrics:
-      system: {enabled: true}
-      sensors: {enabled: true}
-      power: {enabled: true}
-      processors: {enabled: true}
-      memory: {enabled: true}
-      storage: {enabled: true}
-      network: {enabled: false}
-      events: {enabled: true, severity: warning, maxage: 168h}
+      system: true
+      sensors: true
+      power: true
+      processors: true
+      memory: true
+      storage: true
+      network: false
+      events: true
+    events:
+      severity: warning
+      maxage: 7d
