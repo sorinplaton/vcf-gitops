@@ -21,7 +21,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
       - name: idrac-exporter
-        image: ghcr.io/mrlhansen/idrac_exporter:v2.6.3
+        image: ghcr.io/mrlhansen/idrac_exporter:2.6.3
         ports:
         - {name: metrics, containerPort: 9348}
         volumeMounts:
