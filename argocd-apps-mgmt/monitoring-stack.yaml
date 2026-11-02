@@ -49,7 +49,8 @@ spec:
             size: 5Gi
           sidecar:
             dashboards: {enabled: true, label: grafana_dashboard, labelValue: "1", searchNamespace: ALL}
-          # community dashboards for vmware_exporter, imported from grafana.com at start-up
+          # community dashboards for vmware_exporter, imported from grafana.com at start-up; their datasource
+          # input is DS_PROMETHEUS-VICTORIAMETRICS, mapped here to the kube-prometheus-stack datasource uid
           dashboardProviders:
             dashboardproviders.yaml:
               apiVersion: 1
@@ -63,9 +64,9 @@ spec:
                 options: {path: /var/lib/grafana/dashboards/community}
           dashboards:
             community:
-              vmware-overview: {gnetId: 18017, revision: 1, datasource: Prometheus}
-              vmware-host: {gnetId: 18018, revision: 1, datasource: Prometheus}
-              vmware-vm: {gnetId: 18019, revision: 1, datasource: Prometheus}
+              vmware-overview: {gnetId: 18017, revision: 1, datasource: [{name: DS_PROMETHEUS-VICTORIAMETRICS, value: prometheus}]}
+              vmware-host: {gnetId: 18018, revision: 1, datasource: [{name: DS_PROMETHEUS-VICTORIAMETRICS, value: prometheus}]}
+              vmware-vm: {gnetId: 18019, revision: 1, datasource: [{name: DS_PROMETHEUS-VICTORIAMETRICS, value: prometheus}]}
   destination:
     name: mon-mgmt
     namespace: monitoring
