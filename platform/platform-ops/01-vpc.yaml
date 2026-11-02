@@ -9,3 +9,6 @@ spec:
   description: platform-ops GitOps + monitoring (Argo CD as a VCF Service, tech preview)
   projectName: default-project
   regionName: mgmt-a
+  # private block for VKS node subnets (without it NSX error 610711 "Private ip blocks are not
+  # configured in parent VPC" and the cluster VMs never get a NIC)
+  privateIPs: [172.24.0.0/23]
